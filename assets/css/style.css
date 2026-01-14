@@ -1,0 +1,194 @@
+/* ===============================
+   NAVBAR
+================================ */
+.navbar {
+    position: relative;
+    z-index: 10;
+}
+
+.navbar-brand {
+    font-family: 'Viga', sans-serif; /* Pastikan font dimuat di HTML: <link href="https://fonts.googleapis.com/css2?family=Viga&display=swap" rel="stylesheet"> */
+    font-size: 32px;
+}
+
+.logo {
+    height: 50px;
+    width: 50px;
+    margin-right: 10px;
+}
+
+/* ===============================
+   BUTTON
+================================ */
+.search-button {
+    margin-left: 10px;
+    width: 100px;
+    height: 42px;
+    border-radius: 40px;
+    transition: background-color 0.3s ease; /* Tambahan: Smooth transition */
+}
+
+.sub-button {
+    width: 120px;
+    height: 42px;
+    border-radius: 40px;
+    margin-top: 15px;
+    transition: background-color 0.3s ease; /* Tambahan: Smooth transition */
+}
+
+/* ===============================
+   JUMBOTRON
+================================ */
+.jumbotron {
+    min-height: 90vh; /* Diubah: Kurangi dari 100vh untuk menghindari overflow di mobile */
+    padding: 120px 40px 60px;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Tambahan: Center content horizontally */
+}
+
+.jumbotron img {
+    display: none !important; /* Jika tidak perlu, hapus atau ganti dengan lazy loading */
+}
+
+/* ===============================
+   TEXT CONTENT
+================================ */
+.jumbotron h1 {
+    font-size: 48px;
+    font-weight: 700;
+    color: #000;
+    margin-bottom: 15px;
+    max-width: 650px;
+}
+
+.jumbotron p {
+    font-size: 18px;
+    color: #555; /* Periksa kontras: Jika perlu, ubah ke #333 untuk aksesibilitas */
+    margin-bottom: 10px;
+    max-width: 600px;
+}
+
+/* ===============================
+   SEARCH FORM
+================================ */
+.jumbotron-search {
+    margin-top: 25px;
+}
+
+.jumbotron-search input {
+    width: 320px;
+    height: 42px;
+    border-radius: 30px;
+    border: 1px solid #ccc;
+    padding: 0 15px;
+    font-size: 14px;
+    text-align: center;
+    transition: border-color 0.3s ease; /* Tambahan: Smooth focus */
+}
+
+.jumbotron-search input:focus {
+    outline: 2px solid #0B63DC; /* Diubah: Outline untuk aksesibilitas keyboard */
+    border-color: #0B63DC;
+}
+
+/* ===============================
+   DESKTOP NAV
+================================ */
+@media (min-width: 993px) {
+    .nav-link {
+        text-transform: uppercase;
+        margin-right: 30px;
+        transition: all 0.3s ease; /* Tambahan: Smooth hover */
+    }
+
+    .nav-link:hover::after {
+        content: '';
+        display: block;
+        border-bottom: 3px solid #0B63DC;
+        width: 20px;
+        margin: auto;
+        padding-bottom: 5px;
+        margin-bottom: -8px;
+    }
+
+    .login-button {
+        margin-left: 10px;
+        text-transform: uppercase;
+        border-radius: 40px;
+        width: 100%;
+        transition: background-color 0.3s ease; /* Tambahan: Smooth transition */
+    }
+}
+
+/* ===============================
+   TABLET (Tambahan: Untuk ukuran 769-992px)
+================================ */
+@media (min-width: 769px) and (max-width: 992px) {
+    .jumbotron {
+        padding: 100px 30px 50px;
+    }
+
+    .jumbotron h1 {
+        font-size: 40px;
+    }
+
+    .jumbotron p {
+        font-size: 17px;
+    }
+
+    .jumbotron-search input {
+        width: 280px;
+    }
+
+    .search-button {
+        width: 110px;
+    }
+}
+
+/* ===============================
+   TABLET & MOBILE
+================================ */
+@media (max-width: 768px) {
+    .jumbotron {
+        padding: 100px 20px 40px;
+        text-align: center;
+        min-height: auto; /* Diubah: Hapus vh untuk mobile agar fleksibel */
+    }
+
+    .jumbotron h1 {
+        font-size: 32px;
+        margin-top: 0;
+    }
+
+    .jumbotron p {
+        font-size: 16px;
+        margin: auto;
+    }
+
+    .jumbotron-search input {
+        width: 100%;
+        max-width: 280px;
+        margin-bottom: 10px;
+    }
+
+    .search-button {
+        margin-left: 0;
+        width: 100px;
+    }
+}
+
+/* ===============================
+   SMALL MOBILE
+================================ */
+@media (max-width: 480px) {
+    .jumbotron h1 {
+        font-size: 26px;
+        line-height: 32px;
+    }
+
+    .jumbotron p {
+        font-size: 14px;
+    }
+}
