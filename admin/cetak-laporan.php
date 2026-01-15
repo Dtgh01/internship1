@@ -8,12 +8,26 @@ if (!isset($_SESSION['login']) || $_SESSION['login']['role'] !== 'admin') {
     exit;
 }
 
-// Ambil Semua Data Laporan (Urut Tanggal Terbaru)
+// --- LOGIKA FILTER TANGGAL ---
+$where_clause = "";
+$label_periode = "Semua Data";
+
+if (isset($_GET['tgl_awal']) && isset($_GET['tgl_akhir'])) {
+    $tgl_awal = $_GET['tgl_awal'];
+    $tgl_akhir = $_GET['tgl_akhir'];
+    
+    // Filter Query
+    $where_clause = " WHERE DATE(bugs.created_at) BETWEEN '$tgl_awal' AND '$tgl_akhir' ";
+    $label_periode = date('d/m/Y', strtotime($tgl_awal)) . " - " . date('d/m/Y', strtotime($tgl_akhir));
+}
+
+// Query Data
 $query = "SELECT bugs.*, users.name as pelapor, categories.category_name, priorities.priority_name
           FROM bugs
           JOIN users ON bugs.user_id = users.user_id
           JOIN categories ON bugs.category_id = categories.category_id
           JOIN priorities ON bugs.priority_id = priorities.priority_id
+          $where_clause
           ORDER BY bugs.created_at DESC";
 
 $bugs = query($query);
@@ -22,64 +36,56 @@ $bugs = query($query);
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <title>Laporan Bug - TrimHub ID</title>
+    <title>Cetak Laporan - BugTracker</title>
+    <link rel="stylesheet" href="../assets/plugins/bootstrap4/css/bootstrap.min.css">
     <style>
-        /* CSS KHUSUS CETAK */
-        body { font-family: "Times New Roman", Times, serif; font-size: 12pt; color: #000; }
+        /* Desain Polos & Bersih */
+        body { font-family: sans-serif; font-size: 12px; }
+        h3 { font-weight: bold; margin-bottom: 5px; }
+        table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+        table, th, td { border: 1px solid #333; padding: 8px; }
+        th { background-color: #eee; text-align: center; font-weight: bold; }
+        td { vertical-align: top; }
         
-        .header { text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 10px; }
-        .header h1 { margin: 0; font-size: 18pt; text-transform: uppercase; }
-        .header p { margin: 0; font-size: 10pt; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        table, th, td { border: 1px solid black; }
-        th, td { padding: 8px; text-align: left; vertical-align: top; }
-        th { background-color: #f2f2f2; text-align: center; }
-        
-        .status-badge { font-weight: bold; font-size: 0.9em; }
-
-        /* Area Tanda Tangan */
-        .ttd { float: right; margin-top: 50px; text-align: center; width: 250px; }
-        
-        /* Sembunyikan tombol cetak pas diprint */
+        /* Hilangkan elemen header/footer browser saat print */
         @media print {
-            .no-print { display: none; }
+            @page { margin: 1cm; }
         }
     </style>
 </head>
 <body onload="window.print()">
 
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h3>LAPORAN REKAPITULASI BUG & ERROR</h3>
-        <p>Per Tanggal: <?= date('d F Y'); ?></p>
+    <div class="text-center mb-4">
+        <h3>LAPORAN DATA BUGTRACKER</h3>
+        <p class="mb-0">Periode: <strong><?= $label_periode; ?></strong></p>
     </div>
 
-    <table>
+    <table class="table table-bordered table-sm">
         <thead>
             <tr>
                 <th width="5%">No</th>
                 <th>Tanggal</th>
-                <th width="15%">Pelapor</th>
-                <th>Judul Masalah</th>
+                <th>Pelapor</th>
+                <th>Judul Bug</th>
                 <th>Kategori</th>
                 <th>Prioritas</th>
-                <th>Status Akhir</th>
+                <th>Status</th>
             </tr>
         </thead>
         <tbody>
             <?php if(empty($bugs)) : ?>
-                <tr><td colspan="7" style="text-align: center;">Tidak ada data laporan.</td></tr>
+                <tr><td colspan="7" class="text-center font-italic">Tidak ada data pada periode ini.</td></tr>
             <?php else : ?>
                 <?php $i = 1; foreach ($bugs as $row) : ?>
                 <tr>
-                    <td style="text-align: center;"><?= $i++; ?></td>
-                    <td><?= date('d/m/Y', strtotime($row['created_at'])); ?></td>
+                    <td class="text-center"><?= $i++; ?></td>
+                    <td class="text-center"><?= date('d/m/Y', strtotime($row['created_at'])); ?></td>
                     <td><?= $row['pelapor']; ?></td>
                     <td><?= $row['title']; ?></td>
                     <td><?= $row['category_name']; ?></td>
-                    <td style="text-align: center;"><?= $row['priority_name']; ?></td>
-                    <td style="text-align: center;">
-                        <span class="status-badge"><?= strtoupper($row['status']); ?></span>
+                    <td class="text-center"><?= $row['priority_name']; ?></td>
+                    <td class="text-center font-weight-bold">
+                        <?= strtoupper($row['status']); ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -87,12 +93,8 @@ $bugs = query($query);
         </tbody>
     </table>
 
-    <div class="ttd">
-        <p>__________, <?= date('d F Y'); ?></p>
-        <p>Mengetahui,</p>
-        <p><b>_______________________</b></p>
-        <br><br><br> <p>_______________________</p>
-        <p>_______________________</p>
+    <div class="mt-3 text-right text-muted small">
+        <p>Dicetak pada: <?= date('d F Y H:i'); ?></p>
     </div>
 
 </body>

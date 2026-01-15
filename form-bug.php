@@ -2,80 +2,31 @@
 session_start();
 require 'function.php';
 
-// 1. Cek Login User
+// Cek Login
 if (!isset($_SESSION['login'])) {
     header("Location: auth/login.php");
     exit;
 }
 
-// Ambil Data Dropdown (Kategori & Prioritas)
+// Ambil Data user buat Sidebar
+$nama_user = $_SESSION['login']['name'];
+
+// 1. Ambil Data Kategori & Prioritas buat Dropdown
 $categories = query("SELECT * FROM categories");
 $priorities = query("SELECT * FROM priorities");
 
-// 2. PROSES SUBMIT FORM
-if (isset($_POST['kirim'])) {
-    $user_id = $_SESSION['login']['user_id'];
-    $title = htmlspecialchars($_POST['title']);
-    $description = htmlspecialchars($_POST['description']);
-    $category_id = $_POST['category_id'];
-    $priority_id = $_POST['priority_id'];
-    
-    // A. Handle Upload Gambar
-    $attachment = null;
-    $error_upload = false;
-
-    // Cek apakah user upload gambar?
-    if ($_FILES['gambar']['error'] !== 4) {
-        $nama_file = $_FILES['gambar']['name'];
-        $ukuran_file = $_FILES['gambar']['size'];
-        $tmp_name = $_FILES['gambar']['tmp_name'];
-        
-        // Cek Ekstensi (Hanya boleh gambar)
-        $ekstensi_valid = ['jpg', 'jpeg', 'png', 'gif'];
-        $ekstensi_file = explode('.', $nama_file);
-        $ekstensi_file = strtolower(end($ekstensi_file));
-
-        if (!in_array($ekstensi_file, $ekstensi_valid)) {
-            echo "<script>alert('Yang anda upload bukan gambar!');</script>";
-            $error_upload = true;
-        }
-
-        // Cek Ukuran (Max 2MB)
-        if ($ukuran_file > 2000000) {
-            echo "<script>alert('Ukuran gambar terlalu besar! (Max 2MB)');</script>";
-            $error_upload = true;
-        }
-
-        // Lolos Cek -> Upload
-        if (!$error_upload) {
-            // Generate nama baru biar gak duplikat
-            $nama_file_baru = uniqid() . '.' . $ekstensi_file;
-            move_uploaded_file($tmp_name, 'assets/uploads/' . $nama_file_baru);
-            $attachment = $nama_file_baru;
-        }
-    }
-
-    // B. Simpan ke Database (Kalau upload aman)
-    if (!$error_upload) {
-        // Query Insert
-        // Kolom attachment boleh NULL kalau user gak upload
-        $query = "INSERT INTO bugs (user_id, title, description, category_id, priority_id, attachment, status, created_at) 
-                  VALUES ('$user_id', '$title', '$description', '$category_id', '$priority_id', '$attachment', 'Open', NOW())";
-        
-        mysqli_query($conn, $query);
-
-        if (mysqli_affected_rows($conn) > 0) {
-            // Catat History Awal
-            $bug_id = mysqli_insert_id($conn);
-            mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($bug_id, NULL, 'Open', $user_id)");
-
-            echo "<script>
-                    alert('Laporan berhasil dikirim! Terima kasih atas kontribusi Anda.');
-                    document.location.href = 'dashboard.php';
-                  </script>";
-        } else {
-            echo "<script>alert('Gagal mengirim laporan! Silakan coba lagi.');</script>";
-        }
+// 2. Logika Submit Laporan
+if (isset($_POST['submit'])) {
+    // Panggil fungsi insertPengaduan di function.php
+    if (insertPengaduan($_POST, $_FILES) > 0) {
+        echo "<script>
+                alert('Laporan berhasil dikirim! Tim kami akan segera mengeceknya.');
+                document.location.href = 'dashboard.php';
+              </script>";
+    } else {
+        echo "<script>
+                alert('Gagal mengirim laporan! Pastikan semua data terisi atau ukuran gambar tidak terlalu besar.');
+              </script>";
     }
 }
 ?>
@@ -83,117 +34,160 @@ if (isset($_POST['kirim'])) {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buat Laporan | TrimHub ID</title>
-    
-    <link rel="stylesheet" href="assets/plugins/bootstrap4/css/bootstrap.min.css">
-    <link rel="stylesheet" href="assets/plugins/fontawesome-free/css/all.min.css">
-    
-    <style>
-        body { background-color: #f4f6f9; font-family: 'Segoe UI', sans-serif; }
-        
-        /* HEADER GRADIENT (Senada Dashboard User) */
-        .header-form {
-            background: linear-gradient(135deg, #007bff 0%, #00d2ff 100%);
-            color: white;
-            padding: 2rem 0 5rem 0;
-            margin-bottom: -3rem;
-            border-radius: 0 0 20px 20px;
-        }
-        
-        .card-form {
-            border: none; border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lapor Bug Baru | BugTracker</title>
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+  <link rel="stylesheet" href="assets/plugins/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="assets/dist/css/adminlte.min.css">
 </head>
-<body>
+<body class="hold-transition sidebar-mini">
+<div class="wrapper">
 
-<div class="header-form shadow-sm">
-    <div class="container">
-        <a href="dashboard.php" class="text-white font-weight-bold text-decoration-none">
-            <i class="fas fa-arrow-left"></i> Kembali ke Dashboard
-        </a>
-        <h2 class="mt-3 font-weight-bold">Laporkan Masalah Baru</h2>
-        <p class="opacity-90">Jelaskan detail bug yang kamu temukan agar tim developer bisa segera memperbaikinya.</p>
+  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+      </li>
+    </ul>
+  </nav>
+
+  <aside class="main-sidebar sidebar-dark-primary elevation-4">
+    <a href="#" class="brand-link">
+      <span class="brand-text font-weight-bold px-3">BugTracker User</span>
+    </a>
+
+    <div class="sidebar">
+      <nav class="mt-2">
+        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu">
+          <li class="nav-item">
+            <a href="dashboard.php" class="nav-link">
+              <i class="nav-icon fas fa-home"></i>
+              <p>Dashboard Saya</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="form-bug.php" class="nav-link active">
+              <i class="nav-icon fas fa-plus-circle"></i>
+              <p>Buat Laporan Baru</p>
+            </a>
+          </li>
+          <li class="nav-header">AKUN</li>
+          <li class="nav-item">
+            <a href="profil.php" class="nav-link">
+              <i class="nav-icon fas fa-user-cog"></i>
+              <p>Edit Profil</p>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="auth/logout.php" class="nav-link">
+              <i class="nav-icon fas fa-sign-out-alt text-danger"></i>
+              <p>Logout</p>
+            </a>
+          </li>
+        </ul>
+      </nav>
     </div>
-</div>
+  </aside>
 
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card card-form">
-                <div class="card-body p-4">
-                    
-                    <form action="" method="POST" enctype="multipart/form-data">
-                        
-                        <div class="form-group">
-                            <label class="font-weight-bold">Judul Masalah <span class="text-danger">*</span></label>
-                            <input type="text" name="title" class="form-control form-control-lg rounded-pill" placeholder="Contoh: Tombol Login Tidak Berfungsi..." required>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="font-weight-bold">Kategori</label>
-                                    <select name="category_id" class="form-control" required>
-                                        <option value="">-- Pilih Kategori --</option>
-                                        <?php foreach ($categories as $cat) : ?>
-                                            <option value="<?= $cat['category_id']; ?>"><?= $cat['category_name']; ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label class="font-weight-bold">Prioritas / Urgensi</label>
-                                    <select name="priority_id" class="form-control" required>
-                                        <option value="">-- Seberapa Mendesak? --</option>
-                                        <?php foreach ($priorities as $prio) : ?>
-                                            <option value="<?= $prio['priority_id']; ?>"><?= $prio['priority_name']; ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="font-weight-bold">Deskripsi Detail <span class="text-danger">*</span></label>
-                            <textarea name="description" rows="5" class="form-control" placeholder="Jelaskan langkah-langkah terjadinya error secara rinci..." required></textarea>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="font-weight-bold">Bukti Screenshot (Opsional)</label>
-                            <div class="custom-file">
-                                <input type="file" class="custom-file-input" id="gambar" name="gambar" accept="image/*">
-                                <label class="custom-file-label" for="gambar">Pilih file gambar...</label>
-                            </div>
-                            <small class="text-muted">Format: JPG, PNG. Maksimal 2MB.</small>
-                        </div>
-
-                        <hr class="my-4">
-
-                        <button type="submit" name="kirim" class="btn btn-primary btn-block btn-lg rounded-pill shadow">
-                            <i class="fas fa-paper-plane"></i> Kirim Laporan
-                        </button>
-
-                    </form>
-                </div>
-            </div>
+  <div class="content-wrapper">
+    <div class="content-header">
+      <div class="container-fluid">
+        <div class="row mb-2">
+          <div class="col-sm-6">
+            <h1 class="m-0">Form Pelaporan Bug</h1>
+          </div>
         </div>
+      </div>
     </div>
+
+    <div class="content">
+      <div class="container-fluid">
+        <div class="row justify-content-center">
+          <div class="col-md-8">
+            
+            <div class="card card-primary shadow-sm">
+              <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-edit mr-1"></i> Isi Detail Masalah</h3>
+              </div>
+              
+              <form action="" method="POST" enctype="multipart/form-data">
+                <div class="card-body">
+                  
+                  <div class="form-group">
+                    <label>Judul Masalah <span class="text-danger">*</span></label>
+                    <input type="text" name="title" class="form-control" placeholder="Contoh: Tombol Login Tidak Bisa Diklik..." required>
+                  </div>
+
+                  <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Kategori <span class="text-danger">*</span></label>
+                            <select name="category_id" class="form-control" required>
+                                <option value="">-- Pilih Kategori --</option>
+                                <?php foreach ($categories as $cat) : ?>
+                                    <option value="<?= $cat['category_id']; ?>"><?= $cat['category_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Prioritas / Urgensi <span class="text-danger">*</span></label>
+                            <select name="priority_id" class="form-control" required>
+                                <option value="">-- Seberapa Mendesak? --</option>
+                                <?php foreach ($priorities as $prio) : ?>
+                                    <option value="<?= $prio['priority_id']; ?>"><?= $prio['priority_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label>Deskripsi Lengkap <span class="text-danger">*</span></label>
+                    <textarea name="description" class="form-control" rows="5" placeholder="Jelaskan kronologi kejadian, pesan error yang muncul, atau langkah-langkah mereproduksi bug tersebut..." required></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="exampleInputFile">Bukti Screenshot (Opsional)</label>
+                    <div class="input-group">
+                      <div class="custom-file">
+                        <input type="file" name="attachment" class="custom-file-input" id="exampleInputFile">
+                        <label class="custom-file-label" for="exampleInputFile">Pilih file gambar...</label>
+                      </div>
+                    </div>
+                    <small class="text-muted">Format: JPG, PNG, PDF. Maks: 2MB.</small>
+                  </div>
+
+                </div>
+                <div class="card-footer">
+                  <button type="submit" name="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane mr-1"></i> Kirim Laporan</button>
+                  <a href="dashboard.php" class="btn btn-secondary float-right">Batal</a>
+                </div>
+              </form>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="main-footer">
+    <strong>Copyright &copy; 2026 BugTracker.</strong> All rights reserved.
+  </footer>
 </div>
 
 <script src="assets/plugins/jquery/jquery.min.js"></script>
-<script src="assets/plugins/bootstrap4/js/bootstrap.bundle.min.js"></script>
+<script src="assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/plugins/bs-custom-file-input/bs-custom-file-input.min.js"></script>
+<script src="assets/dist/js/adminlte.min.js"></script>
 <script>
-    // Tampilkan nama file di input custom bootstrap
-    $(".custom-file-input").on("change", function() {
-        var fileName = $(this).val().split("\\").pop();
-        $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
-    });
+$(function () {
+  bsCustomFileInput.init();
+});
 </script>
-
 </body>
 </html>

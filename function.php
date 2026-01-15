@@ -1,13 +1,14 @@
 <?php
 // ==========================================
-// KONEKSI DATABASE
+// KONEKSI DATABASE (PORT 3307)
 // ==========================================
 $db_host = "localhost";
 $db_user = "root";
 $db_pass = "";
-$db_name = "bugtrack"; // Pastikan nama DB bener
+$db_name = "bugtrack"; 
 
-$conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name);
+$conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name, 3307);
+
 if (!$conn) {
     die("Koneksi gagal: " . mysqli_connect_error());
 }
@@ -26,74 +27,45 @@ function query($query) {
     return $rows;
 }
 
+// --- FUNGSI KIRIM NOTIFIKASI EMAIL ---
+function kirimNotifikasi($email_penerima, $subjek, $pesan) {
+    // Setting Header Email
+    $headers = "From: no-reply@bugtracker.com" . "\r\n" .
+               "Reply-To: admin@bugtracker.com" . "\r\n" .
+               "X-Mailer: PHP/" . phpversion();
+
+    // Coba kirim email (Hanya jalan jika SMTP XAMPP sudah disetting)
+    // Kalau di hosting beneran, ini langsung jalan.
+    @mail($email_penerima, $subjek, $pesan, $headers);
+}
+
 // ==========================================
-// 1. INSERT BUG (Sesuai Struktur 6 Tabel)
-// ==========================================
-function insertPengaduan($data) 
-{
-    global $conn;
-
-    // Ambil User ID dari Session (Wajib Login)
-    // Pastikan di file login.php session 'user_id' diset saat berhasil login
-    $user_id = $_SESSION['login']['user_id']; 
-
-    // Sanitasi Input
-    $title       = htmlspecialchars($data['title']);
-    $description = htmlspecialchars($data['description']);
-    $category_id = (int) $data['category_id']; // Pastikan Angka
-    $priority_id = (int) $data['priority_id']; // Pastikan Angka
-    
-    // Default Status saat baru dibuat
-    $status = 'Open';
-
-    // Query Insert ke Tabel Utama (BUGS)
-    // Kita simpan ID Kategori & Prioritas, bukan teks-nya
-    $query = "INSERT INTO bugs (title, description, priority_id, category_id, status, user_id) 
-              VALUES ('$title', '$description', $priority_id, $category_id, '$status', $user_id)";
-
-    mysqli_query($conn, $query);
-
-    // Cek jika berhasil insert bug, langsung catat ke History
-    if (mysqli_affected_rows($conn) > 0) {
-        $bug_id = mysqli_insert_id($conn); // Ambil ID bug yang baru jadi
-        
-        // Insert Log Sejarah (Audit Trail)
-        $queryHistory = "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by)
-                         VALUES ($bug_id, NULL, 'Open', $user_id)";
-                         
-        mysqli_query($conn, $queryHistory);
-        return 1;
-    }
-
-    return 0;
-// ==========================================
-// 1. INSERT BUG (Support Upload Gambar)
+// 1. INSERT BUG (UPDATE: ADA NOTIFIKASI KE ADMIN)
 // ==========================================
 function insertPengaduan($data, $files) 
 {
     global $conn;
 
     $user_id     = $_SESSION['login']['user_id']; 
+    $user_name   = $_SESSION['login']['name']; // Ambil nama pelapor
     $title       = htmlspecialchars($data['title']);
     $description = htmlspecialchars($data['description']);
     $category_id = (int) $data['category_id'];
     $priority_id = (int) $data['priority_id'];
-    $status      = 'Open'; // Status awal selalu Open
+    $status      = 'Open'; 
 
-    // --- PROSES UPLOAD GAMBAR (Opsional) ---
     $attachment = null;
     if ($files['attachment']['error'] === 4) {
-        $attachment = null; // User gak upload gambar
+        $attachment = null; 
     } else {
-        $attachment = uploadGambar($files); // Panggil fungsi upload
+        $attachment = uploadGambar($files);
         if (!$attachment) {
-            return false; // Gagal upload (ukuran/ekstensi salah)
+            return false; 
         }
     }
 
-    // Query Insert Baru
-    $query = "INSERT INTO bugs (title, description, attachment, priority_id, category_id, status, user_id) 
-              VALUES ('$title', '$description', '$attachment', $priority_id, $category_id, '$status', $user_id)";
+    $query = "INSERT INTO bugs (title, description, attachment, priority_id, category_id, status, user_id, created_at) 
+              VALUES ('$title', '$description', '$attachment', $priority_id, $category_id, '$status', $user_id, NOW())";
 
     mysqli_query($conn, $query);
 
@@ -104,6 +76,15 @@ function insertPengaduan($data, $files)
         $queryHistory = "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by)
                          VALUES ($bug_id, NULL, 'Open', $user_id)";
         mysqli_query($conn, $queryHistory);
+
+        // --- KIRIM NOTIF KE SEMUA ADMIN ---
+        $admins = query("SELECT email FROM users WHERE role = 'admin'");
+        foreach ($admins as $adm) {
+            $subjek = "[BugTracker] Laporan Baru: $title";
+            $pesan  = "Halo Admin,\n\nAda laporan bug baru dari $user_name.\n\nJudul: $title\nPrioritas: Cek Dashboard\n\nSegera proses ya!";
+            kirimNotifikasi($adm['email'], $subjek, $pesan);
+        }
+
         return 1;
     }
     return 0;
@@ -116,7 +97,6 @@ function uploadGambar($files) {
     $error      = $files['attachment']['error'];
     $tmpName    = $files['attachment']['tmp_name'];
 
-    // Cek ekstensi
     $ekstensiValid = ['jpg', 'jpeg', 'png', 'pdf'];
     $ekstensiGambar = explode('.', $namaFile);
     $ekstensiGambar = strtolower(end($ekstensiGambar));
@@ -126,48 +106,24 @@ function uploadGambar($files) {
         return false;
     }
 
-    // Cek ukuran (Max 2MB)
     if ($ukuranFile > 2000000) {
         echo "<script>alert('Ukuran file terlalu besar (Max 2MB)!');</script>";
         return false;
     }
 
-    // Generate nama baru biar gak kembar
     $namaFileBaru = uniqid() . '.' . $ekstensiGambar;
-    
-    // Pastikan folder 'assets/uploads' sudah dibuat ya!
     move_uploaded_file($tmpName, 'assets/uploads/' . $namaFileBaru);
 
     return $namaFileBaru;
 }
-}
 
 // ==========================================
-// 2. UPDATE STATUS (Pake Fitur History) 
+// 2. UPDATE STATUS
 // ==========================================
 function updateBugStatus($data) {
-    global $conn;
-
-    $bug_id     = (int) $data['bug_id'];
-    $new_status = htmlspecialchars($data['status']); 
-    $user_id    = $_SESSION['login']['user_id']; // Siapa yang ubah? (Admin/Dev)
-
-    // A. Ambil status lama dulu buat dicatat
-    $result = mysqli_query($conn, "SELECT status FROM bugs WHERE bug_id = $bug_id");
-    $row    = mysqli_fetch_assoc($result);
-    $old_status = $row['status'];
-
-    // B. Update Status di tabel Utama
-    mysqli_query($conn, "UPDATE bugs SET status='$new_status' WHERE bug_id=$bug_id");
-
-    // C. Catat perubahan di tabel History
-    // Ini yang bikin nilainya mahal di mata dosen
-    $queryLog = "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by)
-                 VALUES ($bug_id, '$old_status', '$new_status', $user_id)";
-                 
-    mysqli_query($conn, $queryLog);
-
-    return mysqli_affected_rows($conn);
+    // Fungsi ini jarang dipake langsung karena logicnya udah dipisah di tiap file
+    // Tapi biarin aja buat cadangan
+    return 0;
 }
 
 // ==========================================
@@ -176,24 +132,17 @@ function updateBugStatus($data) {
 function deletePengaduan($id) {
     global $conn;
     $id = (int) $id;
-
-    // Hapus history-nya dulu biar gak error foreign key (kalau gak pake CASCADE di DB)
     mysqli_query($conn, "DELETE FROM bug_status_history WHERE bug_id=$id");
-
-    // Baru hapus bug-nya
     mysqli_query($conn, "DELETE FROM bugs WHERE bug_id=$id");
-    
     return mysqli_affected_rows($conn);
 }
 
 // ==========================================
-// 4. SEARCH (Dengan JOIN)
+// 4. SEARCH
 // ==========================================
 function searchPengaduan($keyword) {
     global $conn;
     $keyword = mysqli_real_escape_string($conn, $keyword);
-
-    // Kita cari data tapi tetap sambungin ke kategori & user biar outputnya lengkap
     $query = "SELECT bugs.*, users.name as pelapor, categories.category_name, priorities.priority_name
               FROM bugs
               JOIN users ON bugs.user_id = users.user_id
@@ -204,52 +153,27 @@ function searchPengaduan($keyword) {
                 bugs.description LIKE '%$keyword%' OR
                 users.name LIKE '%$keyword%'
               ORDER BY bugs.created_at DESC";
-
     return query($query);
 }
 
 // ==========================================
-// 5. REGISTRASI (Disesuaikan Schema Baru)
+// 5. REGISTRASI
 // ==========================================
 function registrasi($data) {
     global $conn;
-
     $name  = htmlspecialchars($data["name"]);
-    $email = htmlspecialchars($data["email"]); // Pake Email, bukan NIP lagi
+    $email = htmlspecialchars($data["email"]);
     $pass  = mysqli_real_escape_string($conn, $data["password"]);
-    
-    // Default Role
-    $role = 'user'; 
+    $role  = 'user'; 
 
-    // Cek Email Kembar
     $cek = mysqli_query($conn, "SELECT email FROM users WHERE email = '$email'");
     if (mysqli_fetch_assoc($cek)) {
         echo "<script>alert('Email sudah terdaftar!');</script>";
         return false;
     }
-
-    // Enkripsi Password
     $password = password_hash($pass, PASSWORD_DEFAULT);
-
-    // Insert ke tabel users baru
     $query = "INSERT INTO users (name, email, password, role) VALUES ('$name', '$email', '$password', '$role')";
-    
     mysqli_query($conn, $query);
-
     return mysqli_affected_rows($conn);
 }
-
-// ==========================================
-// 6. FUNGSI LAINNYA
-// ==========================================
-// Update Password User
-function updatePass($data) {
-    global $conn;
-    $id = $_SESSION['login']['user_id'];
-    $password_baru = password_hash($data["password_baru"], PASSWORD_DEFAULT);
-
-    mysqli_query($conn, "UPDATE users SET password='$password_baru' WHERE user_id=$id");
-    return mysqli_affected_rows($conn);
-}
-
 ?>
