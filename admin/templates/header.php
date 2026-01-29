@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="../assets/plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
   
   <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
-
+  <link rel="stylesheet" href="../assets/css/style.css?v=<?php echo time(); ?>">
   <style>
 
       .main-header {

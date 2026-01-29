@@ -1,194 +1,85 @@
-/* ===============================
-   NAVBAR
-================================ */
-.navbar {
-    position: relative;
-    z-index: 10;
+/* =================================================================
+   FIXING ADMINLTE LAYOUT & GLITCHES (FINAL VERSION)
+   ================================================================= */
+
+/* --- 1. SOLUSI FOTO PROFIL "GLITCH" (GEPENG/LONJONG) --- */
+.user-panel .image img,
+.img-circle {
+    width: 35px !important;       /* Paksa ukuran lebar pasti */
+    height: 35px !important;      /* Paksa ukuran tinggi pasti (sama) */
+    object-fit: cover !important; /* MAGIC: Memotong gambar agar pas di lingkaran tanpa gepeng */
+    border-radius: 50% !important;/* Pastikan bulat sempurna */
 }
 
-.navbar-brand {
-    font-family: 'Viga', sans-serif; /* Pastikan font dimuat di HTML: <link href="https://fonts.googleapis.com/css2?family=Viga&display=swap" rel="stylesheet"> */
-    font-size: 32px;
+/* Jika ada foto profil di Navbar atas juga */
+.navbar-nav .user-image {
+    width: 30px !important;
+    height: 30px !important;
+    object-fit: cover !important;
 }
 
-.logo {
-    height: 50px;
-    width: 50px;
-    margin-right: 10px;
+/* --- 2. SOLUSI SIDEBAR "BELANG" --- */
+/* Menyamakan warna logo brand dengan warna sidebar gelap */
+.main-sidebar, .main-sidebar::before {
+    background-color: #001f3f !important; /* Warna Navy Blue konsisten */
 }
 
-/* ===============================
-   BUTTON
-================================ */
-.search-button {
-    margin-left: 10px;
-    width: 100px;
-    height: 42px;
-    border-radius: 40px;
-    transition: background-color 0.3s ease; /* Tambahan: Smooth transition */
+.brand-link {
+    background-color: #001f3f !important; /* Jangan sampai logonya hitam sendiri */
+    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
 }
 
-.sub-button {
-    width: 120px;
-    height: 42px;
-    border-radius: 40px;
-    margin-top: 15px;
-    transition: background-color 0.3s ease; /* Tambahan: Smooth transition */
+.brand-link .brand-image {
+    max-height: 33px;
+    margin-top: -3px; /* Rapikan posisi vertikal logo */
 }
 
-/* ===============================
-   JUMBOTRON
-================================ */
-.jumbotron {
-    min-height: 90vh; /* Diubah: Kurangi dari 100vh untuk menghindari overflow di mobile */
-    padding: 120px 40px 60px;
-    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
-    display: flex;
-    align-items: center;
-    justify-content: center; /* Tambahan: Center content horizontally */
+/* --- 3. PERBAIKAN CARD & DASHBOARD (BIAR GAK MEPET) --- */
+.content-wrapper {
+    background-color: #f4f6f9 !important;
 }
 
-.jumbotron img {
-    display: none !important; /* Jika tidak perlu, hapus atau ganti dengan lazy loading */
+.card {
+    border: 0 !important;
+    border-radius: 12px !important; /* Sudut membulat modern */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05) !important; /* Bayangan halus */
+    margin-bottom: 1.5rem !important; /* Jarak antar card ke bawah */
 }
 
-/* ===============================
-   TEXT CONTENT
-================================ */
-.jumbotron h1 {
-    font-size: 48px;
-    font-weight: 700;
-    color: #000;
-    margin-bottom: 15px;
-    max-width: 650px;
+.card-header {
+    background-color: transparent !important;
+    border-bottom: 1px solid #f0f0f0 !important;
+    padding: 1.2rem 1.5rem !important;
 }
 
-.jumbotron p {
-    font-size: 18px;
-    color: #555; /* Periksa kontras: Jika perlu, ubah ke #333 untuk aksesibilitas */
-    margin-bottom: 10px;
-    max-width: 600px;
+.card-body {
+    padding: 1.5rem !important; /* Memberi ruang napas untuk isi konten */
 }
 
-/* ===============================
-   SEARCH FORM
-================================ */
-.jumbotron-search {
-    margin-top: 25px;
+/* --- 4. PERBAIKAN TOMBOL & TABEL --- */
+.btn {
+    border-radius: 50px !important; /* Tombol Pill Shape */
+    padding-left: 20px;
+    padding-right: 20px;
 }
 
-.jumbotron-search input {
-    width: 320px;
-    height: 42px;
-    border-radius: 30px;
-    border: 1px solid #ccc;
-    padding: 0 15px;
-    font-size: 14px;
-    text-align: center;
-    transition: border-color 0.3s ease; /* Tambahan: Smooth focus */
+/* Header Tabel Modern */
+.table thead th {
+    background-color: #f8f9fa;
+    border-top: none !important;
+    border-bottom: 2px solid #e9ecef !important;
+    color: #495057;
+    font-weight: 600;
 }
 
-.jumbotron-search input:focus {
-    outline: 2px solid #0B63DC; /* Diubah: Outline untuk aksesibilitas keyboard */
-    border-color: #0B63DC;
+/* --- 5. OVERRIDE WARNA UTAMA --- */
+.btn-primary, .bg-primary {
+    background: linear-gradient(135deg, #0061f2 0%, #00c6ff 100%) !important;
+    border: none !important;
 }
 
-/* ===============================
-   DESKTOP NAV
-================================ */
-@media (min-width: 993px) {
-    .nav-link {
-        text-transform: uppercase;
-        margin-right: 30px;
-        transition: all 0.3s ease; /* Tambahan: Smooth hover */
-    }
-
-    .nav-link:hover::after {
-        content: '';
-        display: block;
-        border-bottom: 3px solid #0B63DC;
-        width: 20px;
-        margin: auto;
-        padding-bottom: 5px;
-        margin-bottom: -8px;
-    }
-
-    .login-button {
-        margin-left: 10px;
-        text-transform: uppercase;
-        border-radius: 40px;
-        width: 100%;
-        transition: background-color 0.3s ease; /* Tambahan: Smooth transition */
-    }
-}
-
-/* ===============================
-   TABLET (Tambahan: Untuk ukuran 769-992px)
-================================ */
-@media (min-width: 769px) and (max-width: 992px) {
-    .jumbotron {
-        padding: 100px 30px 50px;
-    }
-
-    .jumbotron h1 {
-        font-size: 40px;
-    }
-
-    .jumbotron p {
-        font-size: 17px;
-    }
-
-    .jumbotron-search input {
-        width: 280px;
-    }
-
-    .search-button {
-        width: 110px;
-    }
-}
-
-/* ===============================
-   TABLET & MOBILE
-================================ */
-@media (max-width: 768px) {
-    .jumbotron {
-        padding: 100px 20px 40px;
-        text-align: center;
-        min-height: auto; /* Diubah: Hapus vh untuk mobile agar fleksibel */
-    }
-
-    .jumbotron h1 {
-        font-size: 32px;
-        margin-top: 0;
-    }
-
-    .jumbotron p {
-        font-size: 16px;
-        margin: auto;
-    }
-
-    .jumbotron-search input {
-        width: 100%;
-        max-width: 280px;
-        margin-bottom: 10px;
-    }
-
-    .search-button {
-        margin-left: 0;
-        width: 100px;
-    }
-}
-
-/* ===============================
-   SMALL MOBILE
-================================ */
-@media (max-width: 480px) {
-    .jumbotron h1 {
-        font-size: 26px;
-        line-height: 32px;
-    }
-
-    .jumbotron p {
-        font-size: 14px;
-    }
+.sidebar-dark-primary .nav-sidebar > .nav-item > .nav-link.active,
+.sidebar-light-primary .nav-sidebar > .nav-item > .nav-link.active {
+    background-color: #0061f2 !important;
+    box-shadow: 0 4px 10px rgba(0, 97, 242, 0.4) !important;
 }

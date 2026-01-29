@@ -2,30 +2,56 @@
 session_start();
 require '../function.php';
 
+// 1. CEK SESSION (JIKA SUDAH LOGIN)
+// Jika user sudah login tapi masuk ke halaman login lagi, lempar balik ke dashboard
 if (isset($_SESSION['login'])) {
     $role = $_SESSION['login']['role'];
-    if ($role == 'admin') header("Location: ../admin/index.php");
-    else if ($role == 'developer') header("Location: ../developer/index.php");
-    else header("Location: ../dashboard.php");
+    if ($role == 'admin') {
+        header("Location: ../admin/index.php");
+    } else if ($role == 'developer') {
+        header("Location: ../developer/index.php");
+    } else {
+        header("Location: ../dashboard.php");
+    }
     exit;
 }
 
+// 2. LOGIKA LOGIN SAAT TOMBOL DITEKAN
 if (isset($_POST['login'])) {
-    $email = htmlspecialchars($_POST['email']);
+    
+    // SECURITY UPDATE: Gunakan real_escape_string untuk input Database!
+    // htmlspecialchars hanya untuk output HTML, tidak aman untuk query database.
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
     $password = $_POST['password'];
 
+    // Cek Email di Database
     $result = mysqli_query($conn, "SELECT * FROM users WHERE email = '$email'");
 
+    // Jika Email Ditemukan (Jumlah baris === 1)
     if (mysqli_num_rows($result) === 1) {
+        
+        // Ambil data user
         $row = mysqli_fetch_assoc($result);
+        
+        // Verifikasi Password (Hash vs Input)
         if (password_verify($password, $row['password'])) {
-            $_SESSION['login'] = $row;
-            if ($row['role'] == 'admin') header("Location: ../admin/index.php");
-            else if ($row['role'] == 'developer') header("Location: ../developer/index.php");
-            else header("Location: ../dashboard.php");
+            
+            // Set Session Login
+            $_SESSION['login'] = $row; // Simpan data user ke session
+
+            // Redirect Sesuai Role (Hak Akses)
+            if ($row['role'] == 'admin') {
+                header("Location: ../admin/index.php");
+            } else if ($row['role'] == 'developer') {
+                header("Location: ../developer/index.php");
+            } else {
+                header("Location: ../dashboard.php");
+            }
             exit;
         }
     }
+
+    // Jika Email tidak ketemu ATAU Password salah
     $error = true;
 }
 ?>
