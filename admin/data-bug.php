@@ -2,204 +2,167 @@
 session_start();
 require '../function.php';
 
-// 1. Cek Login & Role Admin
 if (!isset($_SESSION['login']) || $_SESSION['login']['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
+    header("Location: ../auth/login.php"); exit;
 }
 
-// 2. LOGIKA FILTER TANGGAL
-$tgl_awal  = "";
-$tgl_akhir = "";
-$where_clause = "";
-$url_cetak = "cetak-laporan.php"; // Default cetak semua
+// FILTER LOGIC (BULAN & TAHUN)
+// Default: Bulan & Tahun saat ini
+$bulan_pilih = isset($_GET['bulan']) ? $_GET['bulan'] : date('m');
+$tahun_pilih = isset($_GET['tahun']) ? $_GET['tahun'] : date('Y');
 
-// Kalau tombol filter ditekan dan tanggal tidak kosong
-if (isset($_GET['filter']) && !empty($_GET['tgl_awal']) && !empty($_GET['tgl_akhir'])) {
-    // Security: Gunakan escape string untuk mencegah error query
-    $tgl_awal  = mysqli_real_escape_string($conn, $_GET['tgl_awal']);
-    $tgl_akhir = mysqli_real_escape_string($conn, $_GET['tgl_akhir']);
-    
-    // Tambah WHERE ke Query
-    $where_clause = " WHERE DATE(bugs.created_at) BETWEEN '$tgl_awal' AND '$tgl_akhir' ";
-    
-    // Update link cetak biar bawa parameter tanggal
-    $url_cetak = "cetak-laporan.php?tgl_awal=$tgl_awal&tgl_akhir=$tgl_akhir";
-}
+// Query Filter
+// Kita gunakan fungsi MONTH() dan YEAR() dari SQL
+$where = "WHERE MONTH(bugs.created_at) = '$bulan_pilih' AND YEAR(bugs.created_at) = '$tahun_pilih'";
 
-// 3. Query Data (Ditambah Variabel $where_clause)
 $query = "SELECT bugs.*, users.name as pelapor, categories.category_name, priorities.priority_name
           FROM bugs
           JOIN users ON bugs.user_id = users.user_id
           JOIN categories ON bugs.category_id = categories.category_id
           JOIN priorities ON bugs.priority_id = priorities.priority_id
-          $where_clause
+          $where
           ORDER BY bugs.created_at DESC";
-
 $bugs = query($query);
 
-include 'templates/header.php';
-include 'templates/sidebar-home.php';
+// Helper Array Bulan
+$list_bulan = [
+    '01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April',
+    '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
+    '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'
+];
 ?>
 
-<div class="content-wrapper">
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Data Bug | BugTracker</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../assets/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="../assets/css/skin.css">
+</head>
+
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+
+  <nav class="main-header navbar navbar-expand navbar-dark">
+    <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li></ul>
+  </nav>
+
+  <?php include 'templates/sidebar-home.php'; ?>
+
+  <div class="content-wrapper">
     <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 text-dark font-weight-bold">Data Laporan Bug</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="index.php">Home</a></li>
-                        <li class="breadcrumb-item active">Data Bug</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
+      <div class="container-fluid">
+        <h1 class="m-0 text-white font-weight-bold">Manajemen Laporan</h1>
+      </div>
     </div>
 
     <section class="content">
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-12">
+      <div class="container-fluid">
+        
+        <div class="row">
+          <div class="col-12">
+            <div class="card card-primary card-outline shadow-lg">
+              
+              <div class="card-header border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h3 class="card-title text-white mt-1"><i class="fas fa-list mr-1"></i> Data Masuk</h3>
                     
-                    <div class="card card-primary card-outline shadow-sm">
+                    <form action="" method="GET" class="form-inline">
+                        <label class="text-white mr-2">Periode:</label>
                         
-                        <div class="card-header border-0 d-md-flex justify-content-between align-items-center py-3">
-                            
-                            <h3 class="card-title font-weight-bold mb-2 mb-md-0">
-                                <i class="fas fa-list-alt mr-1"></i> Data Masuk
-                            </h3>
-                            
-                            <div class="card-tools">
-                                <form action="" method="GET" class="form-inline">
-                                    
-                                    <div class="input-group input-group-sm mr-2 mb-2 mb-md-0">
-                                        <div class="input-group-prepend">
-                                            <span class="input-group-text bg-light"><i class="far fa-calendar-alt"></i></span>
-                                        </div>
-                                        <input type="date" name="tgl_awal" class="form-control" value="<?= $tgl_awal; ?>" required>
-                                    </div>
+                        <select name="bulan" class="form-control form-control-sm bg-dark text-white border-secondary mr-2">
+                            <?php foreach($list_bulan as $key => $val): ?>
+                                <option value="<?= $key; ?>" <?= ($key == $bulan_pilih) ? 'selected' : ''; ?>>
+                                    <?= $val; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
 
-                                    <span class="mr-2 font-weight-bold text-muted d-none d-md-inline">-</span>
+                        <select name="tahun" class="form-control form-control-sm bg-dark text-white border-secondary mr-2">
+                            <?php for($t = date('Y'); $t >= 2024; $t--): ?>
+                                <option value="<?= $t; ?>" <?= ($t == $tahun_pilih) ? 'selected' : ''; ?>>
+                                    <?= $t; ?>
+                                </option>
+                            <?php endfor; ?>
+                        </select>
 
-                                    <div class="input-group input-group-sm mr-2 mb-2 mb-md-0">
-                                        <div class="input-group-prepend">
-                                            <span class="input-group-text bg-light"><i class="far fa-calendar-alt"></i></span>
-                                        </div>
-                                        <input type="date" name="tgl_akhir" class="form-control" value="<?= $tgl_akhir; ?>" required>
-                                    </div>
-
-                                    <button type="submit" name="filter" value="true" class="btn btn-info btn-sm mr-2 mb-2 mb-md-0 shadow-sm" title="Terapkan Filter">
-                                        <i class="fas fa-filter"></i> Filter
-                                    </button>
-
-                                    <?php if(!empty($tgl_awal)): ?>
-                                        <a href="data-bug.php" class="btn btn-default btn-sm border mr-2 mb-2 mb-md-0 shadow-sm" title="Reset Filter">
-                                            <i class="fas fa-undo"></i>
-                                        </a>
-                                    <?php endif; ?>
-
-                                    <a href="<?= $url_cetak; ?>" target="_blank" class="btn btn-danger btn-sm mb-2 mb-md-0 shadow-sm px-3">
-                                        <i class="fas fa-file-pdf mr-1"></i> Cetak PDF
-                                    </a>
-
-                                </form>
-                            </div>
-                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary mr-2">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
                         
-                        <div class="card-body p-0 table-responsive">
-                            
-                            <?php if(!empty($tgl_awal)) : ?>
-                                <div class="alert alert-info rounded-0 mb-0 py-2 text-center" style="font-size: 14px;">
-                                    <i class="fas fa-info-circle mr-1"></i> Menampilkan data periode: 
-                                    <b><?= date('d-m-Y', strtotime($tgl_awal)); ?></b> s/d <b><?= date('d-m-Y', strtotime($tgl_akhir)); ?></b>
-                                </div>
-                            <?php endif; ?>
+                        <a href="cetak-laporan.php?bulan=<?= $bulan_pilih; ?>&tahun=<?= $tahun_pilih; ?>" target="_blank" class="btn btn-sm btn-danger">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </a>
+                    </form>
+                </div>
+              </div>
+              
+              <div class="card-body table-responsive">
+                <table id="example1" class="table table-hover text-nowrap">
+                  <thead>
+                    <tr>
+                      <th width="5%">No</th>
+                      <th>Judul Masalah</th>
+                      <th>Pelapor</th>
+                      <th>Prioritas</th>
+                      <th>Status</th>
+                      <th class="text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php $i = 1; foreach ($bugs as $row) : ?>
+                    <tr onclick="window.location.href='detail-bug.php?id=<?= $row['bug_id']; ?>'" style="cursor: pointer;">
+                      <td><?= $i++; ?></td>
+                      <td>
+                          <span class="font-weight-bold text-info"><?= $row['title']; ?></span><br>
+                          <small class="text-muted"><?= date('d M Y', strtotime($row['created_at'])); ?></small>
+                      </td>
+                      <td><?= $row['pelapor']; ?></td>
+                      <td><span class="badge badge-<?= ($row['priority_name']=='Critical'?'danger':'info'); ?>"><?= $row['priority_name']; ?></span></td>
+                      <td>
+                        <?php 
+                            $st = $row['status'];
+                            $badge = ($st == 'Open') ? 'danger' : (($st == 'Resolved') ? 'success' : 'secondary');
+                        ?>
+                        <span class="badge badge-<?= $badge; ?>"><?= $st; ?></span>
+                      </td>
+                      <td class="text-center">
+                         <a href="hapus.php?id=<?= $row['bug_id']; ?>" class="btn btn-xs btn-outline-danger" onclick="return confirm('Hapus permanen?')">
+                            <i class="fas fa-trash"></i>
+                         </a>
+                      </td>
+                    </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
 
-                            <table id="example1" class="table table-hover table-striped text-nowrap">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th width="5%" class="text-center">No</th>
-                                        <th>Judul Masalah</th>
-                                        <th>Kategori</th>
-                                        <th>Pelapor</th>
-                                        <th>Prioritas</th>
-                                        <th class="text-center">Status</th>
-                                        <th width="15%" class="text-center">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php if(empty($bugs)) : ?>
-                                        <tr>
-                                            <td colspan="7" class="text-center py-5 text-muted">
-                                                <i class="fas fa-folder-open fa-3x mb-3 text-gray-300"></i><br>
-                                                <p>Belum ada laporan yang masuk pada periode ini.</p>
-                                            </td>
-                                        </tr>
-                                    <?php else : ?>
-                                        <?php $i = 1; foreach ($bugs as $row) : ?>
-                                        <tr>
-                                            <td class="align-middle" style="cursor: pointer;" onclick="window.location.href='detail-bug.php?id=<?= $row['bug_id']; ?>'">
-    
-    <span class="font-weight-bold text-primary">
-        <?= $row['title']; ?>
-    </span>
-    
-    <br>
-    
-    <small class="text-muted">
-        <i class="far fa-clock mr-1"></i> <?= date('d M Y, H:i', strtotime($row['created_at'])); ?> WIB
-    </small>
-</td>
-                                            <td class="align-middle"><?= $row['category_name']; ?></td>
-                                            <td class="align-middle">
-                                                <i class="fas fa-user-circle text-muted mr-1"></i> <?= $row['pelapor']; ?>
-                                            </td>
-                                            <td class="align-middle">
-                                                <?php if($row['priority_name'] == 'Critical'): ?>
-                                                    <span class="badge badge-danger px-2 py-1"><i class="fas fa-fire mr-1"></i>Critical</span>
-                                                <?php elseif($row['priority_name'] == 'High'): ?>
-                                                    <span class="badge badge-warning px-2 py-1">High</span>
-                                                <?php else: ?>
-                                                    <span class="badge badge-info px-2 py-1"><?= $row['priority_name']; ?></span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td class="text-center align-middle">
-                                                <?php 
-                                                    $st = $row['status'];
-                                                    $badge = 'secondary';
-                                                    if($st == 'Open') $badge = 'danger';
-                                                    if($st == 'Assigned') $badge = 'info';
-                                                    if($st == 'In Progress') $badge = 'primary';
-                                                    if($st == 'Resolved') $badge = 'success';
-                                                    if($st == 'Closed') $badge = 'dark';
-                                                ?>
-                                                <span class="badge badge-<?= $badge; ?> px-3 py-1 text-uppercase" style="letter-spacing: 0.5px;"><?= $st; ?></span>
-                                            </td>
-                                            <td class="text-center align-middle">
-                                                <div class="btn-group">
-                                                    <a href="detail-bug.php?id=<?= $row['bug_id']; ?>" class="btn btn-sm btn-outline-info" title="Lihat Detail">
-                                                        <i class="fas fa-eye"></i> Detail
-                                                    </a>
-                                                    
-                                                    <a href="hapus.php?id=<?= $row['bug_id']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Hapus permanen data ini?');" title="Hapus Data">
-                                                        <i class="fas fa-trash"></i>
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                        </div>
-                    </div>
             </div>
+          </div>
         </div>
+
+      </div>
     </section>
+  </div>
+  
+  <footer class="main-footer"><strong>Copyright &copy; 2026 BugTracker.</strong></footer>
 </div>
 
-<?php include 'templates/footer.php'; ?>
+<script src="../assets/plugins/jquery/jquery.min.js"></script>
+<script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="../assets/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="../assets/dist/js/adminlte.min.js"></script>
+<script>
+  $(function () {
+    $("#example1").DataTable({ "responsive": true, "autoWidth": false, "order": [] });
+  });
+</script>
+</body>
+</html>

@@ -2,312 +2,257 @@
 session_start();
 require 'function.php';
 
-// 1. CEK LOGIN
+// 1. Cek Login
 if (!isset($_SESSION['login'])) {
     header("Location: auth/login.php");
     exit;
 }
 
-$id = $_SESSION['login']['user_id'];
-// Ambil data user terbaru dari database
-$user = query("SELECT * FROM users WHERE user_id = $id")[0];
+$user_id = $_SESSION['login']['user_id'];
 
-// 2. LOGIKA TOMBOL KEMBALI (Sesuai Role)
-$back_link = 'dashboard.php'; 
-if ($user['role'] == 'admin') {
-    $back_link = 'admin/index.php';
-} elseif ($user['role'] == 'developer') {
-    $back_link = 'developer/index.php';
-}
-
-// 3. LOGIKA UPDATE
+// 2. LOGIKA UPDATE PROFIL
 if (isset($_POST['update_profil'])) {
-    
-    // --- UPDATE BIODATA ---
-    if (isset($_POST['name'])) {
-        $name = htmlspecialchars($_POST['name']);
-        mysqli_query($conn, "UPDATE users SET name = '$name' WHERE user_id = $id");
-        $_SESSION['login']['name'] = $name; // Update session nama
+    $nama  = mysqli_real_escape_string($conn, $_POST['name']);
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $pass  = $_POST['password'];
+    $gambar_lama = $_POST['gambar_lama'];
+
+    // Cek folder upload, jika tidak ada, buat folder baru
+    if (!file_exists('assets/uploads')) {
+        mkdir('assets/uploads', 0777, true);
     }
 
-    // --- UPDATE FOTO ---
-    if ($_FILES['foto']['error'] !== 4) {
-        $foto_baru = uploadGambar($_FILES);
-        if ($foto_baru) {
-            // Hapus foto lama jika bukan default (Opsional, biar hemat storage)
-            // if ($user['foto'] != 'default.jpg' && file_exists('assets/uploads/' . $user['foto'])) { unlink('assets/uploads/' . $user['foto']); }
-            
-            mysqli_query($conn, "UPDATE users SET foto = '$foto_baru' WHERE user_id = $id");
-            $_SESSION['login']['foto'] = $foto_baru; // Update session foto
+    // Cek Gambar Baru
+    if ($_FILES['photo']['error'] === 4) {
+        $photo = $gambar_lama;
+    } else {
+        // Validasi Ekstensi
+        $namaFile = $_FILES['photo']['name'];
+        $tmpName  = $_FILES['photo']['tmp_name'];
+        $ekstensiValid = ['jpg', 'jpeg', 'png'];
+        $ekstensi = explode('.', $namaFile);
+        $ekstensi = strtolower(end($ekstensi));
+        
+        if(in_array($ekstensi, $ekstensiValid)) {
+            $namaBaru = uniqid() . '.' . $ekstensi;
+            move_uploaded_file($tmpName, 'assets/uploads/' . $namaBaru);
+            $photo = $namaBaru;
+        } else {
+            echo "<script>alert('Format file tidak valid! Gunakan JPG/PNG.'); window.location='profil.php';</script>";
+            exit;
         }
     }
 
-    // --- UPDATE PASSWORD (Jika Diisi) ---
-    if (!empty($_POST['password'])) {
-        $pass_baru = $_POST['password'];
-        $password_hash = password_hash($pass_baru, PASSWORD_DEFAULT);
-        mysqli_query($conn, "UPDATE users SET password = '$password_hash' WHERE user_id = $id");
-        
-        echo "<script>
-            alert('Profil & Password berhasil diperbarui! Silakan login ulang.');
-            window.location='auth/logout.php';
-        </script>";
-        exit;
+    // Cek Password
+    if (empty($pass)) {
+        $query = "UPDATE users SET name = '$nama', email = '$email', photo = '$photo' WHERE user_id = $user_id";
+    } else {
+        $password_hash = password_hash($pass, PASSWORD_DEFAULT);
+        $query = "UPDATE users SET name = '$nama', email = '$email', password = '$password_hash', photo = '$photo' WHERE user_id = $user_id";
     }
 
-    echo "<script>alert('Profil berhasil diperbarui!'); window.location='profil.php';</script>";
+    if (mysqli_query($conn, $query)) {
+        $_SESSION['login']['name'] = $nama;
+        // Tidak perlu update session photo jika logika tampilan kita ambil langsung dari DB
+        echo "<script>alert('Profil berhasil diperbarui!'); window.location='profil.php';</script>";
+    } else {
+        echo "<script>alert('Gagal update: " . mysqli_error($conn) . "');</script>";
+    }
+}
+
+// 3. Ambil Data Terbaru User (Dipecah biar aman)
+$data_user = query("SELECT * FROM users WHERE user_id = $user_id");
+$user = $data_user[0]; // Ambil indeks ke-0 secara manual
+
+// 4. LOGIKA TAMPILAN FOTO
+$foto_tampil = 'https://ui-avatars.com/api/?name='.urlencode($user['name']).'&background=random&color=fff&size=256'; // Default
+
+// Cek apakah ada foto di database & filenya ada di folder
+if (!empty($user['photo'])) {
+    $path_foto = 'assets/uploads/' . $user['photo'];
+    if (file_exists($path_foto)) {
+        $foto_tampil = $path_foto;
+    }
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Edit Profil Saya | BugTracker</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Profil Saya | BugTracker</title>
 
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
-  <link rel="stylesheet" href="assets/plugins/fontawesome-free/css/all.min.css">
-  <link rel="stylesheet" href="assets/dist/css/adminlte.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="assets/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="assets/css/skin.css">
 
-  <style>
-    body {
-        background-color: #f4f6f9;
-    }
-    .main-header { border-bottom: none; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
-    
-    /* Profile Card Styling */
-    .card-profile-cover {
-        height: 120px;
-        background: linear-gradient(135deg, #007bff, #00d2ff);
-        border-radius: 0.25rem 0.25rem 0 0;
-    }
-    .profile-user-img {
-        width: 130px;
-        height: 130px;
-        object-fit: cover;
-        border: 5px solid #fff;
-        margin-top: -65px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    
-    /* Tab Styling */
-    .nav-pills .nav-link.active, .nav-pills .show>.nav-link {
-        background-color: #007bff;
-        border-radius: 50px;
-        box-shadow: 0 2px 5px rgba(0,123,255,0.4);
-    }
-    .nav-pills .nav-link {
-        border-radius: 50px;
-        color: #6c757d;
-        font-weight: 600;
-        padding: 8px 20px;
-        transition: all 0.2s;
-    }
-    .nav-pills .nav-link:hover {
-        background-color: #e9ecef;
-        color: #007bff;
-    }
-
-    /* Input Styling */
-    .form-control {
-        border-radius: 8px;
-        height: 45px;
-        border: 1px solid #e2e8f0;
-    }
-    .form-control:focus {
-        border-color: #007bff;
-        box-shadow: 0 0 0 0.2rem rgba(0,123,255,0.15);
-    }
-    .input-group-text {
-        border-radius: 8px 0 0 8px;
-        border: 1px solid #e2e8f0;
-        background-color: #f8f9fa;
-    }
-  </style>
+    <style>
+        .modal-content {
+            background-color: #1e293b;
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+        .close { color: #fff; opacity: 1; }
+        
+        /* Efek Hover Foto */
+        .profile-img-container {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            margin: 0 auto;
+        }
+        .profile-img-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Agar gambar tidak gepeng */
+            border: 3px solid #3b82f6;
+            padding: 3px;
+        }
+    </style>
 </head>
 
-<body class="hold-transition layout-top-nav">
+<body class="hold-transition sidebar-mini layout-fixed">
 <div class="wrapper">
 
-  <nav class="main-header navbar navbar-expand-md navbar-light navbar-white">
-    <div class="container">
-      <a href="<?= $back_link; ?>" class="navbar-brand">
-        <i class="fas fa-shield-alt text-primary mr-2"></i>
-        <span class="brand-text font-weight-bold text-dark">BugTracker</span>
-      </a>
-      
-      <ul class="navbar-nav ml-auto">
-        <li class="nav-item">
-            <a href="<?= $back_link; ?>" class="btn btn-light text-primary font-weight-bold rounded-pill px-4 shadow-sm">
-                <i class="fas fa-arrow-left mr-2"></i> Dashboard
-            </a>
-        </li>
-      </ul>
-    </div>
+  <nav class="main-header navbar navbar-expand navbar-dark">
+    <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li></ul>
   </nav>
 
+  <aside class="main-sidebar sidebar-dark-primary elevation-4">
+    <a href="dashboard.php" class="brand-link">
+      <img src="assets/img/logotrimhub.png" alt="Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+      <span class="brand-text font-weight-light">BugTracker</span>
+    </a>
+
+    <div class="sidebar">
+      <nav class="mt-2">
+        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview">
+          <li class="nav-item">
+            <a href="dashboard.php" class="nav-link"><i class="nav-icon fas fa-tachometer-alt"></i><p>Dashboard</p></a>
+          </li>
+          <li class="nav-item">
+            <a href="profil.php" class="nav-link active"><i class="nav-icon fas fa-user"></i><p>Profil Saya</p></a>
+          </li>
+          <li class="nav-header">AKSES</li>
+          <li class="nav-item">
+            <a href="auth/logout.php" class="nav-link bg-danger"><i class="nav-icon fas fa-sign-out-alt"></i><p>Keluar</p></a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </aside>
+
   <div class="content-wrapper">
-    <div class="content mt-4">
-      <div class="container">
-        <div class="row">
-            
-          <div class="col-md-4">
-            <div class="card shadow-lg border-0 mb-4">
-                <div class="card-profile-cover"></div>
-                
-                <div class="card-body box-profile text-center pt-0">
-                    <?php 
-                        $foto_path = !empty($user['foto']) ? "assets/uploads/" . $user['foto'] : "assets/dist/img/avatar5.png";
-                    ?>
-                    <img class="profile-user-img img-fluid img-circle"
-                         src="<?= $foto_path; ?>"
-                         alt="User profile picture"
-                         id="previewFoto">
-
-                    <h3 class="profile-username font-weight-bold mt-3 mb-0"><?= $user['name']; ?></h3>
-                    
-                    <p class="text-muted mb-3">
-                        <?= $user['email']; ?> <i class="fas fa-check-circle text-success ml-1" title="Verified"></i>
-                    </p>
-
-                    <div class="d-flex justify-content-center mb-3">
-                        <span class="badge badge-primary px-3 py-2 rounded-pill text-uppercase" style="letter-spacing: 1px;">
-                            <?= $user['role']; ?>
-                        </span>
-                    </div>
-
-                    <div class="row text-left border-top pt-3 mt-3">
-                        <div class="col-6">
-                            <small class="text-muted d-block">ID Pengguna</small>
-                            <h6 class="font-weight-bold">#<?= $user['user_id']; ?></h6>
-                        </div>
-                        <div class="col-6 text-right">
-                            <small class="text-muted d-block">Terdaftar</small>
-                            <h6 class="font-weight-bold"><?= date('d M Y', strtotime($user['created_at'])); ?></h6>
-                        </div>
-                    </div>
-                </div>
-            </div>
-          </div>
-
-          <div class="col-md-8">
-            <div class="card shadow-lg border-0">
-              <div class="card-header bg-white border-0 pt-4 pb-0">
-                <ul class="nav nav-pills" id="custom-content-below-tab" role="tablist">
-                  <li class="nav-item">
-                    <a class="nav-link active" id="tab-biodata" data-toggle="pill" href="#biodata" role="tab">
-                        <i class="fas fa-user-circle mr-2"></i> Biodata
-                    </a>
-                  </li>
-                  <li class="nav-item ml-2">
-                    <a class="nav-link" id="tab-security" data-toggle="pill" href="#security" role="tab">
-                        <i class="fas fa-lock mr-2"></i> Keamanan
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              
-              <div class="card-body pt-4">
-                <form class="form-horizontal" method="POST" enctype="multipart/form-data">
-                    <div class="tab-content">
-                        
-                        <div class="tab-pane fade show active" id="biodata" role="tabpanel">
-                            <div class="form-group">
-                                <label>Nama Lengkap</label>
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <span class="input-group-text bg-white"><i class="fas fa-user"></i></span>
-                                    </div>
-                                    <input type="text" class="form-control" name="name" value="<?= $user['name']; ?>" required>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Email (Login ID)</label>
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <span class="input-group-text bg-light"><i class="fas fa-envelope"></i></span>
-                                    </div>
-                                    <input type="email" class="form-control bg-light" value="<?= $user['email']; ?>" readonly>
-                                </div>
-                                <small class="text-muted">*Email tidak dapat diubah.</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Upload Foto Baru</label>
-                                <div class="custom-file">
-                                    <input type="file" class="custom-file-input" name="foto" id="inputFile" accept="image/*">
-                                    <label class="custom-file-label" for="inputFile">Pilih file gambar...</label>
-                                </div>
-                                <small class="text-info mt-1 d-block"><i class="fas fa-info-circle"></i> Rekomendasi: Format JPG/PNG, Kotak (1:1), Maks 2MB.</small>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="security" role="tabpanel">
-                            <div class="alert alert-warning rounded-lg">
-                                <i class="fas fa-exclamation-triangle mr-2"></i> 
-                                <strong>Perhatian:</strong> Mengganti password akan membuat Anda logout otomatis.
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Password Baru</label>
-                                <div class="input-group">
-                                    <div class="input-group-prepend">
-                                        <span class="input-group-text bg-white"><i class="fas fa-key"></i></span>
-                                    </div>
-                                    <input type="password" class="form-control" name="password" placeholder="Kosongkan jika tidak ingin mengganti password">
-                                </div>
-                            </div>
-                        </div>
-
-                    </div> <hr class="my-4">
-                    
-                    <div class="row">
-                        <div class="col-md-12 text-right">
-                            <button type="button" class="btn btn-default mr-2 rounded-pill" onclick="window.history.back()">Batal</button>
-                            <button type="submit" name="update_profil" class="btn btn-primary font-weight-bold rounded-pill px-5 shadow-sm">
-                                <i class="fas fa-save mr-2"></i> SIMPAN PERUBAHAN
-                            </button>
-                        </div>
-                    </div>
-                </form>
-              </div></div>
-          </div>
-          
+    <div class="content-header">
+      <div class="container-fluid">
+        <div class="row mb-2">
+          <div class="col-sm-6"><h1 class="m-0 text-white font-weight-bold">Profil Pengguna</h1></div>
         </div>
       </div>
     </div>
+
+    <section class="content">
+      <div class="container-fluid">
+        <div class="row justify-content-center">
+            
+            <div class="col-md-5">
+                <div class="card card-primary card-outline shadow-lg">
+                    <div class="card-body box-profile text-center">
+                        <div class="text-center mb-4">
+                            <div class="profile-img-container">
+                                <img class="profile-user-img img-fluid img-circle"
+                                     src="<?= $foto_tampil; ?>"
+                                     alt="Foto Profil">
+                            </div>
+                        </div>
+
+                        <h3 class="profile-username text-center text-white font-weight-bold"><?= $user['name']; ?></h3>
+                        <p class="text-muted text-center text-uppercase mb-4"><?= $user['role']; ?> SYSTEM</p>
+
+                        <ul class="list-group list-group-unbordered mb-4 text-left">
+                            <li class="list-group-item bg-transparent border-top-0" style="border-color: rgba(255,255,255,0.1);">
+                                <b class="text-white"><i class="fas fa-envelope mr-2"></i>Email</b> 
+                                <a class="float-right text-muted"><?= $user['email']; ?></a>
+                            </li>
+                            <li class="list-group-item bg-transparent" style="border-color: rgba(255,255,255,0.1);">
+                                <b class="text-white"><i class="fas fa-calendar mr-2"></i>Bergabung</b> 
+                                <a class="float-right text-muted"><?= date('d M Y', strtotime($user['created_at'])); ?></a>
+                            </li>
+                        </ul>
+
+                        <button type="button" class="btn btn-primary btn-block font-weight-bold py-2" data-toggle="modal" data-target="#modalEdit">
+                            <i class="fas fa-edit mr-1"></i> Edit Profil
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+      </div>
+    </section>
   </div>
   
-  <footer class="main-footer border-top-0 bg-white text-center mt-4">
-    <small class="text-muted">Copyright &copy; 2026 <b>BugTracker System</b>. All rights reserved.</small>
-  </footer>
+  <footer class="main-footer"><strong>Copyright &copy; 2026 BugTracker.</strong></footer>
+</div>
+
+<div class="modal fade" id="modalEdit" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title font-weight-bold"><i class="fas fa-user-edit mr-2"></i>Edit Data Diri</h5>
+        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+      </div>
+      
+      <form action="" method="POST" enctype="multipart/form-data">
+          <div class="modal-body">
+            <input type="hidden" name="gambar_lama" value="<?= $user['photo']; ?>">
+
+            <div class="form-group">
+                <label>Nama Lengkap</label>
+                <input type="text" name="name" class="form-control" value="<?= $user['name']; ?>" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" name="email" class="form-control" value="<?= $user['email']; ?>" required>
+            </div>
+
+            <div class="form-group">
+                <label>Password Baru <small class="text-muted">(Opsional)</small></label>
+                <input type="password" name="password" class="form-control" placeholder="Biarkan kosong jika tidak diganti">
+            </div>
+
+            <div class="form-group">
+                <label>Ganti Foto Profil</label>
+                <div class="custom-file">
+                    <input type="file" name="photo" class="custom-file-input" id="customFile" accept="image/*">
+                    <label class="custom-file-label" for="customFile">Pilih file...</label>
+                </div>
+                <small class="text-muted">Format: JPG/PNG. Maksimal 2MB.</small>
+            </div>
+          </div>
+          
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+            <button type="submit" name="update_profil" class="btn btn-primary"><i class="fas fa-save mr-1"></i> Simpan</button>
+          </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <script src="assets/plugins/jquery/jquery.min.js"></script>
 <script src="assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/plugins/bs-custom-file-input/bs-custom-file-input.min.js"></script>
 <script src="assets/dist/js/adminlte.min.js"></script>
 
 <script>
-    // Menampilkan nama file yang dipilih
-    $(".custom-file-input").on("change", function() {
-        var fileName = $(this).val().split("\\").pop();
-        $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
-        
-        // Preview Gambar secara langsung
-        readURL(this);
-    });
-
-    function readURL(input) {
-        if (input.files && input.files[0]) {
-            var reader = new FileReader();
-            reader.onload = function(e) {
-                $('#previewFoto').attr('src', e.target.result); // Ganti src gambar profil
-            }
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
+$(function () {
+  bsCustomFileInput.init();
+});
 </script>
 </body>
 </html>

@@ -2,13 +2,22 @@
 session_start();
 require '../function.php';
 
-// 1. CEK SESSION (JIKA SUDAH LOGIN)
-// Jika user sudah login tapi masuk ke halaman login lagi, lempar balik ke dashboard
+// Cek Cookie
+if (isset($_COOKIE['id']) && isset($_COOKIE['key'])) {
+    $id = $_COOKIE['id'];
+    $key = $_COOKIE['key'];
+    $result = mysqli_query($conn, "SELECT email FROM users WHERE user_id = $id");
+    $row = mysqli_fetch_assoc($result);
+    if ($key === hash('sha256', $row['email'])) {
+        $_SESSION['login'] = true;
+    }
+}
+
+// Cek Session
 if (isset($_SESSION['login'])) {
-    $role = $_SESSION['login']['role'];
-    if ($role == 'admin') {
+    if ($_SESSION['login']['role'] == 'admin') {
         header("Location: ../admin/index.php");
-    } else if ($role == 'developer') {
+    } elseif ($_SESSION['login']['role'] == 'developer') {
         header("Location: ../developer/index.php");
     } else {
         header("Location: ../dashboard.php");
@@ -16,33 +25,31 @@ if (isset($_SESSION['login'])) {
     exit;
 }
 
-// 2. LOGIKA LOGIN SAAT TOMBOL DITEKAN
-if (isset($_POST['login'])) {
-    
-    // SECURITY UPDATE: Gunakan real_escape_string untuk input Database!
-    // htmlspecialchars hanya untuk output HTML, tidak aman untuk query database.
-    $email = mysqli_real_escape_string($conn, $_POST['email']);
-    $password = $_POST['password'];
+// LOGIK LOGIN
+if (isset($_POST["login"])) {
+    $email = mysqli_real_escape_string($conn, $_POST["email"]);
+    $password = $_POST["password"];
 
-    // Cek Email di Database
     $result = mysqli_query($conn, "SELECT * FROM users WHERE email = '$email'");
 
-    // Jika Email Ditemukan (Jumlah baris === 1)
     if (mysqli_num_rows($result) === 1) {
-        
-        // Ambil data user
         $row = mysqli_fetch_assoc($result);
-        
-        // Verifikasi Password (Hash vs Input)
-        if (password_verify($password, $row['password'])) {
-            
-            // Set Session Login
-            $_SESSION['login'] = $row; // Simpan data user ke session
+        if (password_verify($password, $row["password"])) {
+            $_SESSION["login"] = [
+                'user_id' => $row['user_id'],
+                'email' => $row['email'],
+                'name' => $row['name'],
+                'role' => $row['role']
+            ];
 
-            // Redirect Sesuai Role (Hak Akses)
+            if (isset($_POST['remember'])) {
+                setcookie('id', $row['user_id'], time() + 60, '/');
+                setcookie('key', hash('sha256', $row['email']), time() + 60, '/');
+            }
+
             if ($row['role'] == 'admin') {
                 header("Location: ../admin/index.php");
-            } else if ($row['role'] == 'developer') {
+            } elseif ($row['role'] == 'developer') {
                 header("Location: ../developer/index.php");
             } else {
                 header("Location: ../dashboard.php");
@@ -50,8 +57,6 @@ if (isset($_POST['login'])) {
             exit;
         }
     }
-
-    // Jika Email tidak ketemu ATAU Password salah
     $error = true;
 }
 ?>
@@ -59,103 +64,175 @@ if (isset($_POST['login'])) {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Login | Trimhub BugTracker</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login | BugTracker</title>
 
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
-  <link rel="stylesheet" href="../assets/plugins/fontawesome-free/css/all.min.css">
-  <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
 
-  <style>
-    /* BACKGROUND GRADASI BIRU */
-    body {
-        background: linear-gradient(135deg, #0061f2 0%, #00c6ff 100%);
-        height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .login-box { width: 400px; }
-    
-    .card {
-        border-radius: 15px;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.25);
-        border: none;
-        background-color: #ffffff;
-    }
-    /* Padding Header disesuaikan buat Logo Image */
-    .card-header {
-        background: transparent;
-        border-bottom: none;
-        padding-top: 35px;
-        padding-bottom: 10px;
-    }
-    
-    .btn-primary {
-        background: #0061f2; border: none; border-radius: 50px; font-weight: bold; transition: 0.3s;
-        box-shadow: 0 4px 6px rgba(0,97,242,0.4);
-    }
-    .btn-primary:hover {
-        background: #004bbd; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,97,242,0.6);
-    }
-    .form-control { border-radius: 50px; height: 45px; background: #f8f9fa; border: 1px solid #ddd; }
-    .form-control:focus { background: #fff; border-color: #0061f2; }
-    .input-group-text { border-radius: 0 50px 50px 0; background-color: #f8f9fa; border: 1px solid #ddd; border-left: none; }
-  </style>
+    <style>
+        /* --- CUSTOM LOGIN CSS --- */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; 
+            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 75%);
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-box { width: 400px; padding: 20px; }
+
+        .card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: none; /* Hilangkan garis bawah header */
+            padding-top: 40px;
+            padding-bottom: 10px;
+        }
+
+        /* Styling Logo agar presisi */
+        .login-logo img {
+            width: 100px; /* Ukuran Logo */
+            height: 100px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); /* Efek glow biru tipis */
+            transition: transform 0.3s;
+        }
+        .login-logo img:hover {
+            transform: scale(1.05); /* Efek zoom dikit pas dihover */
+        }
+
+        .card-body { padding: 30px; }
+
+        /* Input */
+        .form-control {
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            height: 45px;
+            border-radius: 8px;
+        }
+        .form-control:focus {
+            background-color: rgba(15, 23, 42, 0.9);
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+            color: #fff;
+        }
+        .input-group-text {
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: none;
+            color: #94a3b8;
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        /* Tombol */
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border: none;
+            height: 45px;
+            border-radius: 8px;
+            font-weight: 600;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);
+            transition: 0.2s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        }
+
+        a { color: #60a5fa; }
+        .icheck-primary label { color: #cbd5e1; }
+        .alert-danger {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+        }
+    </style>
 </head>
 
-<body>
-<div class="login-box">
-  
-  <div class="card">
-    <div class="card-header text-center">
-      <a href="../index.php">
-          <img src="../assets/img/logotrimhub.png" alt="Trimhub Logo" style="max-width: 100px; height: auto;">
-      </a>
+<body class="hold-transition login-page">
+    
+    <div class="login-box">
+        <div class="card">
+            <div class="card-header text-center">
+                <div class="login-logo">
+                    <a href="../index.php">
+                        <img src="../assets/img/logo1.png" alt="Logo BugTracker">
+                    </a>
+                </div>
+                <p class="text-white font-weight-bold mt-3 mb-1" style="font-size: 1.2rem;">BugTracker</p>
+                <p class="login-box-msg p-0 text-muted">LOGIN</p>
+            </div>
+            
+            <div class="card-body">
+                
+                <?php if (isset($error)) : ?>
+                    <div class="alert alert-danger text-center rounded-lg mb-4 p-2">
+                        <small><i class="fas fa-times-circle mr-1"></i> Email atau Password salah!</small>
+                    </div>
+                <?php endif; ?>
+
+                <form action="" method="post">
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <input type="email" name="email" class="form-control" placeholder="Email Address" required>
+                            <div class="input-group-append">
+                                <div class="input-group-text">
+                                    <span class="fas fa-envelope"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="input-group">
+                            <input type="password" name="password" class="form-control" placeholder="Password" required>
+                            <div class="input-group-append">
+                                <div class="input-group-text">
+                                    <span class="fas fa-lock"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-8">
+                            <div class="icheck-primary">
+                                <input type="checkbox" id="remember" name="remember">
+                                <label for="remember">Ingat Saya</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <button type="submit" name="login" class="btn btn-primary btn-block">
+                                MASUK
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                
+            </div>
+        </div>
     </div>
-    <div class="card-body login-card-body pb-4 rounded-lg">
-      <p class="login-box-msg text-muted font-weight-bold">BugTracker</p>
 
-      <?php if(isset($error)) : ?>
-          <div class="alert alert-danger text-center py-2 rounded-pill mb-3" style="font-size: 14px;">
-              <i class="fas fa-times-circle mr-1"></i> Email / Password Salah
-          </div>
-      <?php endif; ?>
-
-      <form action="" method="post">
-        <div class="input-group mb-3">
-          <input type="email" name="email" class="form-control" placeholder="Email" required>
-          <div class="input-group-append">
-            <div class="input-group-text"><span class="fas fa-envelope text-primary"></span></div>
-          </div>
-        </div>
-        
-        <div class="input-group mb-4">
-          <input type="password" name="password" class="form-control" placeholder="Password" required>
-          <div class="input-group-append">
-            <div class="input-group-text"><span class="fas fa-lock text-primary"></span></div>
-          </div>
-        </div>
-        
-        <div class="row">
-          <div class="col-12">
-            <button type="submit" name="login" class="btn btn-primary btn-block py-2">
-                MASUK SEKARANG
-            </button>
-          </div>
-        </div>
-      </form>
-
-      <div class="text-center mt-4">
-        <p class="mb-1 text-muted small font-weight-bold">Belum punya akun?</p>
-        <a href="sign-up.php" class="text-primary font-weight-bold" style="text-decoration: underline;">Daftar Akun Baru</a>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="../assets/plugins/jquery/jquery.min.js"></script>
-<script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/plugins/jquery/jquery.min.js"></script>
+    <script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/dist/js/adminlte.min.js"></script>
 </body>
 </html>

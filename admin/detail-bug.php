@@ -2,229 +2,228 @@
 session_start();
 require '../function.php';
 
-// 1. CEK LOGIN ADMIN
+// Cek Akses
 if (!isset($_SESSION['login']) || $_SESSION['login']['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
+    header("Location: ../auth/login.php"); exit;
 }
 
-$id_bug = (int)$_GET['id'];
-$admin_id = $_SESSION['login']['user_id'];
+$id = $_GET['id'];
 
-// ==========================================
-// A. LOGIKA UTAMA: VALIDASI (RESOLVED -> CLOSED/OPEN)
-// ==========================================
-if (isset($_POST['validasi_bug'])) {
-    $keputusan = $_POST['validasi_bug'];
-    $catatan   = htmlspecialchars($_POST['catatan_validasi']);
+// 1. PROSES UPDATE (ASSIGN DEV & UBAH STATUS)
+if (isset($_POST['update_bug'])) {
+    $assigned_to = $_POST['assigned_to']; // ID Developer
+    $new_status  = $_POST['status'];
+    $old_status  = $_POST['old_status'];
+    $admin_id    = $_SESSION['login']['user_id'];
+
+    // Update Tabel Bugs
+    // Jika assigned_to kosong (belum dipilih), set NULL
+    $assign_sql = empty($assigned_to) ? "NULL" : "'$assigned_to'";
     
-    $old_data = query("SELECT title, user_id FROM bugs WHERE bug_id = $id_bug")[0];
-
-    if ($keputusan == 'terima') {
-        $new_status = 'Closed';
-        $msg_alert  = "Validasi Diterima! Bug Ditutup.";
-        $msg_email  = "Laporan Bug '{$old_data['title']}' telah DITUTUP (Valid).";
-    } else {
-        $new_status = 'Open';
-        $msg_alert  = "Validasi Ditolak! Status kembali Open.";
-        $msg_email  = "Laporan Bug '{$old_data['title']}' DITOLAK (Masih Error).";
-    }
-
-    mysqli_query($conn, "UPDATE bugs SET status = '$new_status', updated_at = NOW() WHERE bug_id = $id_bug");
-    mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($id_bug, 'Resolved', '$new_status', $admin_id)");
-
-    if (function_exists('kirimNotifikasi')) {
-        $pelapor = query("SELECT email FROM users WHERE user_id = {$old_data['user_id']}")[0];
-        kirimNotifikasi($pelapor['email'], "[BugTracker] Update Status #$id_bug", "Halo,\n\n$msg_email\nCatatan Admin: $catatan");
-    }
-    echo "<script>alert('$msg_alert'); window.location='detail-bug.php?id=$id_bug';</script>";
-}
-
-// ==========================================
-// B. LOGIKA STANDARD: ASSIGN, CLOSE, REOPEN
-// ==========================================
-if (isset($_POST['assign_developer'])) {
-    $dev_id = (int)$_POST['developer_id'];
-    $cek_status = query("SELECT status FROM bugs WHERE bug_id = $id_bug")[0]['status'];
-    $status_baru = ($cek_status == 'Open') ? 'Assigned' : $cek_status;
-
-    mysqli_query($conn, "UPDATE bugs SET assigned_to = $dev_id, status = '$status_baru', updated_at = NOW() WHERE bug_id = $id_bug");
+    $query = "UPDATE bugs SET 
+              assigned_to = $assign_sql, 
+              status = '$new_status', 
+              updated_at = NOW() 
+              WHERE bug_id = $id";
     
-    $dev_info = query("SELECT name, email FROM users WHERE user_id = $dev_id")[0];
-    mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($id_bug, '$cek_status', '$status_baru', $admin_id)");
-    
-    if (function_exists('kirimNotifikasi')) {
-        kirimNotifikasi($dev_info['email'], "Tugas Baru #$id_bug", "Halo, Anda dapat tugas baru.");
+    mysqli_query($conn, $query);
+
+    // Cek apakah Status Berubah? Jika ya, catat di History
+    if ($new_status != $old_status) {
+        $log_query = "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_at, changed_by) 
+                      VALUES ('$id', '$old_status', '$new_status', NOW(), '$admin_id')";
+        mysqli_query($conn, $log_query);
     }
-    echo "<script>alert('Berhasil Assign!'); window.location='detail-bug.php?id=$id_bug';</script>";
+
+    echo "<script>alert('Laporan berhasil diperbarui!'); window.location='detail-bug.php?id=$id';</script>";
 }
 
-if (isset($_POST['close_bug'])) {
-    $alasan = htmlspecialchars($_POST['alasan']);
-    mysqli_query($conn, "UPDATE bugs SET status = 'Closed', updated_at = NOW() WHERE bug_id = $id_bug");
-    mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($id_bug, 'Open/Assigned', 'Closed', $admin_id)");
-    echo "<script>alert('Bug Ditutup!'); window.location='detail-bug.php?id=$id_bug';</script>";
-}
-
-if (isset($_POST['reopen_bug'])) {
-    $alasan = htmlspecialchars($_POST['alasan_reopen']);
-    mysqli_query($conn, "UPDATE bugs SET status = 'Open', updated_at = NOW() WHERE bug_id = $id_bug");
-    mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($id_bug, 'Closed', 'Open', $admin_id)");
-    echo "<script>alert('Bug Dibuka Kembali!'); window.location='detail-bug.php?id=$id_bug';</script>";
-}
-
-// ==========================================
-// C. LOGIKA TAMBAHAN: UBAH STATUS MANUAL (FORCE)
-// ==========================================
-if (isset($_POST['force_status_change'])) {
-    $status_manual = $_POST['status_manual'];
-    $status_lama_cek = query("SELECT status FROM bugs WHERE bug_id = $id_bug")[0]['status'];
-
-    if ($status_manual != $status_lama_cek) {
-        mysqli_query($conn, "UPDATE bugs SET status = '$status_manual', updated_at = NOW() WHERE bug_id = $id_bug");
-        mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($id_bug, '$status_lama_cek', '$status_manual', $admin_id)");
-        echo "<script>alert('Status berhasil diubah manual ke $status_manual'); window.location='detail-bug.php?id=$id_bug';</script>";
-    } else {
-        echo "<script>alert('Status tidak berubah (sama dengan sebelumnya).');</script>";
-    }
-}
-
-// AMBIL DATA
-$query = "SELECT bugs.*, u_pelapor.name as pelapor, u_dev.name as developer, c.category_name, p.priority_name
-          FROM bugs
-          LEFT JOIN users u_pelapor ON bugs.user_id = u_pelapor.user_id
+// 2. AMBIL DATA BUG LENGKAP
+$query = "SELECT bugs.*, 
+          u_pelapor.name as pelapor, 
+          u_dev.name as developer, 
+          categories.category_name, 
+          priorities.priority_name 
+          FROM bugs 
+          JOIN users u_pelapor ON bugs.user_id = u_pelapor.user_id
           LEFT JOIN users u_dev ON bugs.assigned_to = u_dev.user_id
-          LEFT JOIN categories c ON bugs.category_id = c.category_id
-          LEFT JOIN priorities p ON bugs.priority_id = p.priority_id
-          WHERE bugs.bug_id = $id_bug";
-$data = query($query);
-if (empty($data)) exit;
-$bug = $data[0];
+          JOIN categories ON bugs.category_id = categories.category_id
+          JOIN priorities ON bugs.priority_id = priorities.priority_id
+          WHERE bug_id = $id";
+$bug = query($query)[0];
 
+// 3. AMBIL DATA HISTORY
+$histories = query("SELECT h.*, u.name as actor, u.role as actor_role 
+                    FROM bug_status_history h
+                    JOIN users u ON h.changed_by = u.user_id
+                    WHERE bug_id = $id 
+                    ORDER BY changed_at DESC");
+
+// 4. AMBIL LIST DEVELOPER (Untuk Dropdown)
 $developers = query("SELECT * FROM users WHERE role = 'developer'");
-$histories = query("SELECT h.*, u.name as pengubah FROM bug_status_history h JOIN users u ON h.changed_by = u.user_id WHERE h.bug_id = $id_bug ORDER BY h.changed_at DESC");
 
-include 'templates/header.php';
-include 'templates/sidebar-home.php';
+// Helper File
+$ext = pathinfo($bug['attachment'], PATHINFO_EXTENSION);
+$is_image = in_array(strtolower($ext), ['jpg', 'jpeg', 'png']);
 ?>
 
-<div class="content-wrapper">
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Detail Kontrol | BugTracker</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="../assets/css/skin.css">
+    
+    <style>
+        .timeline-item { background: rgba(30, 41, 59, 0.6) !important; border: 1px solid rgba(255,255,255,0.1); color: #fff; }
+        .timeline-header { color: #fff !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; }
+        .timeline-item > .time { color: #94a3b8 !important; }
+    </style>
+</head>
+
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+
+  <nav class="main-header navbar navbar-expand navbar-dark">
+    <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li></ul>
+  </nav>
+
+  <?php include 'templates/sidebar-home.php'; ?>
+
+  <div class="content-wrapper">
     <div class="content-header">
-        <div class="container-fluid"><h1 class="m-0 text-dark">Detail Laporan #<?= $bug['bug_id']; ?></h1></div>
+      <div class="container-fluid">
+        <div class="row mb-2">
+          <div class="col-sm-6"><h1 class="m-0 text-white font-weight-bold">Control Room #<?= $bug['bug_id']; ?></h1></div>
+          <div class="col-sm-6 text-right">
+              <a href="data-bug.php" class="btn btn-secondary"><i class="fas fa-arrow-left mr-1"></i> Kembali</a>
+          </div>
+        </div>
+      </div>
     </div>
 
     <section class="content">
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="card card-primary card-outline">
-                        <div class="card-header">
-                            <h3 class="card-title font-weight-bold"><?= $bug['title']; ?></h3>
-                            <div class="card-tools"><span class="badge badge-secondary"><?= $bug['status']; ?></span></div>
-                        </div>
-                        <div class="card-body">
-                            <p><?= nl2br($bug['description']); ?></p>
-                            <?php if($bug['attachment']) : ?><hr><img src="../assets/uploads/<?= $bug['attachment']; ?>" class="img-fluid" style="max-height: 300px;"><?php endif; ?>
-                        </div>
+      <div class="container-fluid">
+        <div class="row">
+            
+            <div class="col-md-8">
+                
+                <div class="card card-primary card-outline shadow-lg mb-4">
+                    <div class="card-header">
+                        <h3 class="card-title text-white font-weight-bold"><i class="fas fa-cogs mr-2"></i>Tindakan Admin</h3>
                     </div>
-                    <div class="card card-info card-outline">
-                        <div class="card-header"><h3 class="card-title">Timeline</h3></div>
-                        <div class="card-body p-0">
-                            <table class="table table-striped">
-                                <?php foreach($histories as $log): ?>
-                                <tr>
-                                    <td><?= date('d/m H:i', strtotime($log['changed_at'])); ?></td>
-                                    <td><?= $log['pengubah']; ?></td>
-                                    <td><?= $log['old_status']; ?> -> <b><?= $log['new_status']; ?></b></td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </table>
+                    <form action="" method="POST">
+                        <div class="card-body">
+                            <input type="hidden" name="old_status" value="<?= $bug['status']; ?>">
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="text-white">Assign Developer (Tugaskan Ke)</label>
+                                        <select name="assigned_to" class="form-control bg-dark border-secondary text-white">
+                                            <option value="">-- Belum Ditunjuk --</option>
+                                            <?php foreach($developers as $dev): ?>
+                                                <option value="<?= $dev['user_id']; ?>" <?= ($bug['assigned_to'] == $dev['user_id']) ? 'selected' : ''; ?>>
+                                                    <?= $dev['name']; ?> (Dev)
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="text-white">Update Status</label>
+                                        <select name="status" class="form-control bg-dark border-secondary text-white">
+                                            <option value="Open" <?= ($bug['status']=='Open')?'selected':''; ?>>Open (Baru)</option>
+                                            <option value="Assigned" <?= ($bug['status']=='Assigned')?'selected':''; ?>>Assigned (Diterima)</option>
+                                            <option value="In Progress" <?= ($bug['status']=='In Progress')?'selected':''; ?>>In Progress (Dikerjakan)</option>
+                                            <option value="Resolved" <?= ($bug['status']=='Resolved')?'selected':''; ?>>Resolved (Selesai)</option>
+                                            <option value="Closed" <?= ($bug['status']=='Closed')?'selected':''; ?>>Closed (Tutup Tiket)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                        <div class="card-footer bg-transparent border-top-0">
+                            <button type="submit" name="update_bug" class="btn btn-primary font-weight-bold btn-block">
+                                <i class="fas fa-save mr-2"></i> SIMPAN PERUBAHAN & UPDATE HISTORY
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card card-dark card-outline">
+                    <div class="card-header">
+                        <h3 class="card-title text-white font-weight-bold"><?= $bug['title']; ?></h3>
+                    </div>
+                    <div class="card-body">
+                         <div class="row mb-3 text-muted">
+                            <div class="col-4">Pelapor: <b class="text-white"><?= $bug['pelapor']; ?></b></div>
+                            <div class="col-4">Kategori: <b class="text-white"><?= $bug['category_name']; ?></b></div>
+                            <div class="col-4">Prioritas: <span class="badge badge-<?= ($bug['priority_name']=='Critical'?'danger':'info'); ?>"><?= $bug['priority_name']; ?></span></div>
+                        </div>
+                        
+                        <div class="p-3 mb-3 rounded" style="background: rgba(255,255,255,0.05);">
+                            <label class="text-info">Deskripsi:</label>
+                            <p class="text-white mb-0"><?= nl2br($bug['description']); ?></p>
+                        </div>
+
+                        <?php if(!empty($bug['attachment'])): ?>
+                            <label class="text-info">Bukti Lampiran:</label><br>
+                            <?php if($is_image): ?>
+                                <img src="../assets/uploads/<?= $bug['attachment']; ?>" class="img-fluid rounded border border-secondary" style="max-height: 400px;">
+                            <?php else: ?>
+                                <a href="../assets/uploads/<?= $bug['attachment']; ?>" class="btn btn-default" target="_blank"><i class="fas fa-file-pdf mr-1"></i> Lihat File PDF</a>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
 
-                <div class="col-md-4">
-                    
-                    <?php if ($bug['status'] == 'Resolved'): ?>
-                        <div class="card card-warning" style="border: 2px solid #ffc107;">
-                            <div class="card-header bg-warning"><h3 class="card-title font-weight-bold">VALIDASI</h3></div>
-                            <div class="card-body">
-                                <form action="" method="POST">
-                                    <div class="form-group"><textarea name="catatan_validasi" class="form-control" placeholder="Catatan..." required></textarea></div>
-                                    <div class="row">
-                                        <div class="col-6"><button type="submit" name="validasi_bug" value="terima" class="btn btn-success btn-block font-weight-bold">TERIMA</button></div>
-                                        <div class="col-6"><button type="submit" name="validasi_bug" value="tolak" class="btn btn-danger btn-block font-weight-bold">TOLAK</button></div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-
-                    <?php elseif ($bug['status'] == 'Closed'): ?>
-                        <div class="card card-success">
-                            <div class="card-header"><h3 class="card-title">Status: CLOSED</h3></div>
-                            <div class="card-body">
-                                <form action="" method="POST" onsubmit="return confirm('Buka kembali?');">
-                                    <div class="form-group"><input type="text" name="alasan_reopen" class="form-control" placeholder="Alasan..." required></div>
-                                    <button type="submit" name="reopen_bug" class="btn btn-outline-success btn-block">BUKA KEMBALI</button>
-                                </form>
-                            </div>
-                        </div>
-
-                    <?php else: ?>
-                        <div class="card card-primary">
-                            <div class="card-header"><h3 class="card-title">Assign Dev</h3></div>
-                            <div class="card-body">
-                                <form action="" method="POST">
-                                    <div class="form-group">
-                                        <select name="developer_id" class="form-control" required>
-                                            <option value="">-- Pilih --</option>
-                                            <?php foreach($developers as $dev): ?><option value="<?= $dev['user_id']; ?>"><?= $dev['name']; ?></option><?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <button type="submit" name="assign_developer" class="btn btn-primary btn-block">Simpan</button>
-                                </form>
-                            </div>
-                        </div>
-                        <div class="card card-danger mt-3">
-                            <div class="card-body">
-                                <form action="" method="POST" onsubmit="return confirm('Tutup?');">
-                                    <input type="text" name="alasan" class="form-control mb-2" placeholder="Alasan tutup..." required>
-                                    <button type="submit" name="close_bug" class="btn btn-danger btn-block">Close Bug</button>
-                                </form>
-                            </div>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="card card-secondary collapsed-card mt-3 shadow-none border">
-                        <div class="card-header">
-                            <h3 class="card-title">Ubah Status Manual</h3>
-                            <div class="card-tools">
-                                <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-plus"></i></button>
-                            </div>
-                        </div>
-                        <div class="card-body" style="background-color: #f9f9f9;">
-                            <form action="" method="POST" onsubmit="return confirm('Ubah status secara paksa?');">
-                                <div class="form-group">
-                                    <label>Paksa Ubah ke:</label>
-                                    <select name="status_manual" class="form-control" required>
-                                        <option value="" disabled selected>-- Pilih Status --</option>
-                                        <option value="Open">Open</option>
-                                        <option value="Assigned">Assigned</option>
-                                        <option value="In Progress">In Progress</option>
-                                        <option value="Testing">Testing</option>
-                                        <option value="Resolved">Resolved</option>
-                                        <option value="Closed">Closed</option>
-                                    </select>
-                                </div>
-                                <button type="submit" name="force_status_change" class="btn btn-sm btn-secondary btn-block font-weight-bold">
-                                    <i class="fas fa-edit mr-1"></i> SIMPAN PERUBAHAN
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    </div>
             </div>
+
+            <div class="col-md-4">
+                <h5 class="text-white mb-3"><i class="fas fa-history mr-2"></i>Riwayat Tracking</h5>
+                <div class="timeline">
+                    <?php foreach($histories as $log): ?>
+                        <div>
+                            <i class="fas fa-circle bg-blue"></i>
+                            <div class="timeline-item">
+                                <span class="time"><i class="fas fa-clock"></i> <?= date('d M H:i', strtotime($log['changed_at'])); ?></span>
+                                <h3 class="timeline-header">
+                                    <span class="text-primary font-weight-bold"><?= $log['actor']; ?></span> 
+                                    <small>(<?= $log['actor_role']; ?>)</small>
+                                </h3>
+                                <div class="timeline-body">
+                                    <?php if(empty($log['old_status'])): ?>
+                                        Membuat Laporan Baru
+                                    <?php else: ?>
+                                        Mengubah status: <br>
+                                        <del class="text-muted"><?= $log['old_status']; ?></del> 
+                                        <i class="fas fa-arrow-right mx-1 text-xs"></i> 
+                                        <b class="text-success"><?= $log['new_status']; ?></b>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    <div><i class="fas fa-clock bg-gray"></i></div>
+                </div>
+            </div>
+
         </div>
+      </div>
     </section>
+  </div>
+  
+  <footer class="main-footer"><strong>Copyright &copy; 2026 BugTracker.</strong></footer>
 </div>
-<?php include 'templates/footer.php'; ?>
+<script src="../assets/plugins/jquery/jquery.min.js"></script>
+<script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/dist/js/adminlte.min.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
   
   <a href="index.php" class="brand-link text-center">
-    <img src="../assets/img/logotrimhub.png" alt="Logo" class="brand-image img-circle elevation-3" style="opacity: .8; max-height: 33px; float: none;">
+    <img src="../assets/img/logo1.png" alt="Logo" class="brand-image img-circle elevation-3" style="opacity: .8; max-height: 33px; float: none;">
     
     <span class="brand-text font-weight-bold d-block mt-1">BugTracker</span>
   </a>

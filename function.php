@@ -1,21 +1,16 @@
 <?php
-// Tampilkan error biar transparan saat dev
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
 // ==========================================
 // KONEKSI DATABASE
 // ==========================================
-$db_host = "localhost"; // Atau 127.0.0.1 jika localhost error
+$db_host = "localhost";
 $db_user = "root";
 $db_pass = "";
-$db_name = "bugtrack"; 
+$db_name = "bugtrack"; // Sesuaikan nama DB
 
-$conn = mysqli_connect($db_host, $db_user, $db_pass, $db_name);
+$conn = @mysqli_connect($db_host, $db_user, $db_pass, $db_name);
 
 if (!$conn) {
-    die("<b>Koneksi Database Gagal:</b> " . mysqli_connect_error());
+    die("<h1>Mohon Maaf</h1><p>Sistem sedang mengalami gangguan koneksi. Silakan coba beberapa saat lagi.</p>");
 }
 
 // ==========================================
@@ -26,7 +21,9 @@ function query($query) {
     global $conn;
     $result = mysqli_query($conn, $query);
     if (!$result) {
-        die("<b>Query Error:</b> " . mysqli_error($conn) . "<br>SQL: $query");
+        // Log error di server, jangan tampilkan ke user
+        error_log(mysqli_error($conn)); 
+        return [];
     }
     $rows = [];
     while ($row = mysqli_fetch_assoc($result)) {
@@ -35,26 +32,19 @@ function query($query) {
     return $rows;
 }
 
-function kirimNotifikasi($email, $subjek, $pesan) {
-    if ($_SERVER['SERVER_NAME'] == 'localhost' || $_SERVER['SERVER_NAME'] == '127.0.0.1') {
-        return true; // Skip di localhost
-    }
-    $headers = "From: admin@bugtracker.com";
-    @mail($email, $subjek, $pesan, $headers);
-}
-
 // ==========================================
-// 1. FUNGSI UPLOAD (SUDAH DIPERBAIKI)
+// 1. FUNGSI UPLOAD (SECURE - MIME CHECK)
 // ==========================================
 function uploadGambar($files) {
-    // LOGIKA BARU: Cek otomatis kuncinya 'attachment' atau 'foto'
     $kunci = '';
+    
+    // Deteksi apakah inputnya 'attachment' atau 'foto'
     if (isset($files['attachment'])) {
-        $kunci = 'attachment'; // Untuk Bug Report
+        $kunci = 'attachment'; 
     } elseif (isset($files['foto'])) {
-        $kunci = 'foto';       // Untuk Profil User
+        $kunci = 'foto';       
     } else {
-        return false; // Tidak ada file yang dikenal
+        return false; 
     }
 
     $namaFile   = $files[$kunci]['name'];
@@ -62,7 +52,7 @@ function uploadGambar($files) {
     $error      = $files[$kunci]['error'];
     $tmpName    = $files[$kunci]['tmp_name'];
 
-    // Cek apakah ada file yg diupload
+    // Cek apakah tidak ada file yang diupload
     if ($error === 4) {
         return false;
     }
@@ -73,7 +63,20 @@ function uploadGambar($files) {
     $ekstensiGambar = strtolower(end($ekstensiGambar));
 
     if (!in_array($ekstensiGambar, $ekstensiValid)) {
-        echo "<script>alert('Yang diupload bukan gambar/PDF yang valid!');</script>";
+        echo "<script>alert('Ekstensi file tidak valid! Hanya JPG, PNG, PDF.');</script>";
+        return false;
+    }
+
+    // Cek MIME Type (Keamanan Tinggi)
+    // Pastikan extension=fileinfo aktif di php.ini
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeTypeAsli = finfo_file($finfo, $tmpName);
+    finfo_close($finfo);
+
+    $mimeAman = ['image/jpeg', 'image/png', 'application/pdf'];
+
+    if (!in_array($mimeTypeAsli, $mimeAman)) {
+        echo "<script>alert('File corrupt atau palsu terdeteksi!');</script>";
         return false;
     }
 
@@ -83,13 +86,15 @@ function uploadGambar($files) {
         return false;
     }
 
-    // Generate Nama Baru & Upload
+    // Generate Nama Baru
     $namaFileBaru = uniqid() . '.' . $ekstensiGambar;
     
-    // Auto-detect path (admin/developer folder vs root)
+    // Cek folder upload
     $target_dir = "assets/uploads/";
-    if (!file_exists($target_dir) && file_exists("../assets/uploads/")) {
-        $target_dir = "../assets/uploads/";
+    
+    // Buat folder jika belum ada (Penting!)
+    if (!file_exists($target_dir)) {
+        mkdir($target_dir, 0777, true);
     }
     
     move_uploaded_file($tmpName, $target_dir . $namaFileBaru);
@@ -98,65 +103,104 @@ function uploadGambar($files) {
 }
 
 // ==========================================
-// 2. INSERT BUG
+// 2. TAMBAH BUG (UPDATED & SECURE)
 // ==========================================
-function insertPengaduan($data, $files) {
+// Note: Parameter $files dihapus agar sinkron dengan panggilan di form-bug.php
+function tambahBug($data) {
     global $conn;
 
+    // Ambil variabel Global $_FILES secara langsung di sini
+    $files = $_FILES;
+
     $user_id     = $_SESSION['login']['user_id']; 
-    $title       = mysqli_real_escape_string($conn, htmlspecialchars($data['title']));
-    $description = mysqli_real_escape_string($conn, htmlspecialchars($data['description']));
+    $title       = htmlspecialchars($data['title']);
+    $description = htmlspecialchars($data['description']);
     $category_id = (int) $data['category_id'];
     $priority_id = (int) $data['priority_id'];
     $status      = 'Open'; 
 
-    // Upload attachment (jika ada)
+    // Proses Upload
     $attachment = null;
-    if ($files['attachment']['error'] !== 4) {
+    // Cek apakah ada file attachment yang dikirim dan tidak error
+    if (isset($files['attachment']) && $files['attachment']['error'] !== 4) {
         $attachment = uploadGambar($files);
-        if (!$attachment) return false; // Gagal upload
+        // Jika upload gagal (format salah/kegedean), return 0 (Gagal)
+        if (!$attachment) return 0; 
     }
 
+    // INSERT BUG (Prepared Statement)
     $query = "INSERT INTO bugs (title, description, attachment, priority_id, category_id, status, user_id, created_at) 
-              VALUES ('$title', '$description', '$attachment', $priority_id, $category_id, '$status', $user_id, NOW())";
+              VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
 
-    mysqli_query($conn, $query);
+    $stmt = mysqli_prepare($conn, $query);
+    // Bind Param: s=string, i=integer
+    // title(s), desc(s), attach(s), prio(i), cat(i), stat(s), user(i)
+    mysqli_stmt_bind_param($stmt, "sssissi", $title, $description, $attachment, $priority_id, $category_id, $status, $user_id);
+    mysqli_stmt_execute($stmt);
 
-    if (mysqli_affected_rows($conn) > 0) {
+    // Jika Insert Berhasil
+    if (mysqli_stmt_affected_rows($stmt) > 0) {
         $bug_id = mysqli_insert_id($conn);
-        // Catat History Awal
-        mysqli_query($conn, "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by) VALUES ($bug_id, NULL, 'Open', $user_id)");
-        return 1;
+        
+        // INSERT HISTORY (Otomatis mencatat history pertama)
+        $hist_query = "INSERT INTO bug_status_history (bug_id, old_status, new_status, changed_by, changed_at) 
+                       VALUES (?, NULL, 'Open', ?, NOW())";
+        $stmt_hist = mysqli_prepare($conn, $hist_query);
+        mysqli_stmt_bind_param($stmt_hist, "ii", $bug_id, $user_id);
+        mysqli_stmt_execute($stmt_hist);
+        
+        return 1; // Sukses
+    } else {
+        // Debugging (Opsional: Matikan saat live)
+        // echo mysqli_error($conn);
+        return 0; // Gagal
     }
-    return 0;
 }
 
 // ==========================================
-// 3. LAIN-LAIN
+// 3. FUNGSI REGISTRASI (SECURE)
 // ==========================================
-function deletePengaduan($id) {
-    global $conn;
-    $id = (int) $id;
-    mysqli_query($conn, "DELETE FROM bug_status_history WHERE bug_id=$id");
-    mysqli_query($conn, "DELETE FROM bugs WHERE bug_id=$id");
-    return mysqli_affected_rows($conn);
-}
-
 function registrasi($data) {
     global $conn;
-    $name  = mysqli_real_escape_string($conn, htmlspecialchars($data["name"]));
-    $email = mysqli_real_escape_string($conn, htmlspecialchars($data["email"]));
-    $pass  = mysqli_real_escape_string($conn, $data["password"]);
+    
+    $name  = htmlspecialchars($data["name"]);
+    $email = htmlspecialchars($data["email"]);
+    $pass  = $data["password"];
     $role  = 'user'; 
 
-    $cek = mysqli_query($conn, "SELECT email FROM users WHERE email = '$email'");
-    if (mysqli_fetch_assoc($cek)) {
+    // Cek Email Kembar
+    $stmt_cek = mysqli_prepare($conn, "SELECT email FROM users WHERE email = ?");
+    mysqli_stmt_bind_param($stmt_cek, "s", $email);
+    mysqli_stmt_execute($stmt_cek);
+    mysqli_stmt_store_result($stmt_cek);
+
+    if (mysqli_stmt_num_rows($stmt_cek) > 0) {
         echo "<script>alert('Email sudah terdaftar!');</script>";
         return false;
     }
+
+    // Enkripsi Password
     $password = password_hash($pass, PASSWORD_DEFAULT);
-    $query = "INSERT INTO users (name, email, password, role) VALUES ('$name', '$email', '$password', '$role')";
-    mysqli_query($conn, $query);
+
+    // Insert User
+    $query_ins = "INSERT INTO users (name, email, password, role, created_at) VALUES (?, ?, ?, ?, NOW())";
+    $stmt_ins = mysqli_prepare($conn, $query_ins);
+    mysqli_stmt_bind_param($stmt_ins, "ssss", $name, $email, $password, $role);
+    
+    mysqli_stmt_execute($stmt_ins);
+
+    return mysqli_stmt_affected_rows($stmt_ins);
+}
+
+// ==========================================
+// 4. FUNGSI LAIN
+// ==========================================
+function deletePengaduan($id) {
+    global $conn;
+    $id = (int) $id; 
+    // Hapus history dulu karena Foreign Key
+    mysqli_query($conn, "DELETE FROM bug_status_history WHERE bug_id=$id");
+    mysqli_query($conn, "DELETE FROM bugs WHERE bug_id=$id");
     return mysqli_affected_rows($conn);
 }
 ?>

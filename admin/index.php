@@ -2,218 +2,165 @@
 session_start();
 require '../function.php';
 
-// 1. CEK LOGIN & ROLE
-if (!isset($_SESSION['login'])) {
-    header("Location: ../auth/login.php");
-    exit;
+if (!isset($_SESSION['login']) || $_SESSION['login']['role'] !== 'admin') {
+    header("Location: ../auth/login.php"); exit;
 }
 
-if ($_SESSION['login']['role'] !== 'admin') {
-    echo "<script>alert('Akses Ditolak!'); window.location='../dashboard.php';</script>";
-    exit;
-}
+// LOGIKA HITUNG
+$total_bug    = count(query("SELECT * FROM bugs"));
+$total_open   = count(query("SELECT * FROM bugs WHERE status = 'Open'"));
+$total_closed = count(query("SELECT * FROM bugs WHERE status = 'Resolved' OR status = 'Closed'"));
+$total_users  = count(query("SELECT * FROM users WHERE role IN ('user', 'developer')"));
 
-// 2. QUERY STATISTIK (DARI KODE LAMA KAMU - TETAP DIPAKAI)
-$q1 = mysqli_query($conn, "SELECT COUNT(*) as total FROM bugs");
-$total_bugs = mysqli_fetch_assoc($q1)['total'];
-
-$q2 = mysqli_query($conn, "SELECT COUNT(*) as total FROM bugs WHERE status = 'Open'");
-$open_bugs = mysqli_fetch_assoc($q2)['total'];
-
-$q3 = mysqli_query($conn, "SELECT COUNT(*) as total FROM bugs WHERE status = 'In Progress'");
-$progress_bugs = mysqli_fetch_assoc($q3)['total'];
-
-$q4 = mysqli_query($conn, "SELECT COUNT(*) as total FROM users WHERE role = 'user'");
-$total_users = mysqli_fetch_assoc($q4)['total'];
-
-
-// 3. QUERY BARU: LIST VALIDASI (Resolved)
-// Ini fitur baru: Menampilkan bug yang sudah selesai dikerjakan Developer dan butuh ACC Admin
-$query_validasi = "SELECT bugs.*, users.name as pelapor, categories.category_name 
-                   FROM bugs 
-                   JOIN users ON bugs.user_id = users.user_id
-                   JOIN categories ON bugs.category_id = categories.category_id
-                   WHERE status = 'Resolved' 
-                   ORDER BY updated_at ASC"; 
-$list_validasi = query($query_validasi);
-
-
-// 4. INCLUDE TEMPLATE (SESUAI STRUKTUR KAMU)
-include 'templates/header.php';
-include 'templates/sidebar-home.php'; 
+// AMBIL 5 DATA TERBARU
+$recent_bugs = query("SELECT bugs.*, users.name as pelapor, priorities.priority_name 
+                      FROM bugs 
+                      JOIN users ON bugs.user_id = users.user_id
+                      JOIN priorities ON bugs.priority_id = priorities.priority_id
+                      ORDER BY bugs.created_at DESC LIMIT 5");
 ?>
 
-<style>
-    .content-wrapper { background-color: #f4f6f9 !important; }    
-    .small-box {
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        transition: transform 0.2s;
-    }
-    .small-box:hover { transform: translateY(-3px); }
-    
-    /* Style Khusus Tabel Validasi */
-    .card-validasi { border-left: 5px solid #ffc107; }
-    .bg-validasi { background-color: #fffcf5; }
-    .blink_me { animation: blinker 1.5s linear infinite; }
-    @keyframes blinker { 50% { opacity: 0; } }
-</style>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin Dashboard | BugTracker</title>
 
-<div class="content-wrapper">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="../assets/css/skin.css">
     
+    <style>
+        /* Agar Widget & Tabel terasa 'Clickable' */
+        .info-box { cursor: pointer; transition: transform 0.2s; }
+        .info-box:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.3) !important; }
+        
+        .clickable-row { cursor: pointer; transition: background 0.2s; }
+        .clickable-row:hover { background-color: rgba(59, 130, 246, 0.1) !important; }
+    </style>
+</head>
+
+<body class="hold-transition sidebar-mini layout-fixed">
+<div class="wrapper">
+
+  <nav class="main-header navbar navbar-expand navbar-dark">
+    <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li></ul>
+    <ul class="navbar-nav ml-auto"><li class="nav-item"><span class="nav-link text-white">Dashboard Admin</span></li></ul>
+  </nav>
+
+  <?php include 'templates/sidebar-home.php'; ?>
+
+  <div class="content-wrapper">
     <div class="content-header">
-        <div class="container-fluid">
-            <div class="row mb-2">
-                <div class="col-sm-6">
-                    <h1 class="m-0 text-dark font-weight-bold">Dashboard Admin</h1>
-                </div>
-                <div class="col-sm-6">
-                    <ol class="breadcrumb float-sm-right">
-                        <li class="breadcrumb-item"><a href="#">Home</a></li>
-                        <li class="breadcrumb-item active">Dashboard</li>
-                    </ol>
-                </div>
-            </div>
-        </div>
+      <div class="container-fluid"><div class="row mb-2"><div class="col-sm-6"><h1 class="m-0 text-white font-weight-bold">Command Center</h1></div></div></div>
     </div>
 
     <section class="content">
-        <div class="container-fluid">
-            
-            <div class="row">
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-info">
-                        <div class="inner">
-                            <h3><?= $total_bugs; ?></h3>
-                            <p>Total Laporan</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-folder-open"></i></div>
-                        <a href="data-bug.php" class="small-box-footer">Lihat Semua <i class="fas fa-arrow-circle-right"></i></a>
-                    </div>
-                </div>
-
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-danger">
-                        <div class="inner">
-                            <h3><?= $open_bugs; ?></h3>
-                            <p>Perlu Review (Open)</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <a href="data-bug.php" class="small-box-footer">Segera Cek <i class="fas fa-arrow-circle-right"></i></a>
-                    </div>
-                </div>
-
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-warning">
-                        <div class="inner text-white">
-                            <h3><?= $progress_bugs; ?></h3>
-                            <p>Sedang Dikerjakan</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-tools"></i></div>
-                        <a href="data-bug.php" class="small-box-footer" style="color: white !important;">Pantau Progress <i class="fas fa-arrow-circle-right"></i></a>
-                    </div>
-                </div>
-
-                <div class="col-lg-3 col-6">
-                    <div class="small-box bg-success">
-                        <div class="inner">
-                            <h3><?= $total_users; ?></h3>
-                            <p>User Terdaftar</p>
-                        </div>
-                        <div class="icon"><i class="fas fa-users"></i></div>
-                        <a href="active-acc.php" class="small-box-footer">Kelola User <i class="fas fa-arrow-circle-right"></i></a>
-                    </div>
-                </div>
+      <div class="container-fluid">
+        
+        <div class="row">
+          
+          <div class="col-12 col-sm-6 col-md-3" onclick="window.location.href='data-bug.php'">
+            <div class="info-box bg-dark border border-secondary shadow-sm">
+              <span class="info-box-icon bg-info elevation-1"><i class="fas fa-bug"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text text-muted">Total Laporan</span>
+                <span class="info-box-number text-white"><?= $total_bug; ?></span>
+              </div>
             </div>
+          </div>
 
-            <?php if (!empty($list_validasi)) : ?>
-            <div class="row mt-2">
-                <div class="col-12">
-                    <div class="card card-warning card-outline card-validasi shadow-lg">
-                        <div class="card-header bg-white">
-                            <h3 class="card-title font-weight-bold text-warning">
-                                <i class="fas fa-bell mr-2 blink_me"></i> MENUNGGU VALIDASI (RESOLVED)
-                            </h3>
-                            <div class="card-tools">
-                                <span class="badge badge-warning"><?= count($list_validasi); ?> Laporan</span>
-                                <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-minus"></i></button>
-                            </div>
-                        </div>
-                        <div class="card-body table-responsive p-0">
-                            <table class="table table-hover text-nowrap">
-                                <thead class="bg-light">
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Masalah</th>
-                                        <th>Developer</th>
-                                        <th>Status</th>
-                                        <th class="text-center">Aksi Validasi</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-validasi">
-                                    <?php foreach ($list_validasi as $val) : ?>
-                                    <tr>
-                                        <td class="align-middle font-weight-bold text-center">#<?= $val['bug_id']; ?></td>
-                                        <td class="align-middle">
-                                            <span class="font-weight-bold"><?= $val['title']; ?></span><br>
-                                            <small class="text-muted"><i class="fas fa-user mr-1"></i> Pelapor: <?= $val['pelapor']; ?></small>
-                                        </td>
-                                        <td class="align-middle">
-                                            <?php 
-                                                // Ambil nama developer
-                                                $dev_q = mysqli_query($conn, "SELECT name FROM users WHERE user_id = {$val['assigned_to']}");
-                                                $dev = mysqli_fetch_assoc($dev_q);
-                                                echo '<span class="text-primary font-weight-bold">'.($dev['name'] ?? 'Unknown').'</span>';
-                                            ?>
-                                        </td>
-                                        <td class="align-middle">
-                                            <span class="badge badge-success px-3 py-1">Resolved (Selesai)</span>
-                                        </td>
-                                        <td class="text-center align-middle">
-                                            <a href="detail-bug.php?id=<?= $val['bug_id']; ?>" class="btn btn-warning btn-sm font-weight-bold shadow-sm rounded-pill px-4">
-                                                <i class="fas fa-check-double mr-1"></i> CEK HASIL
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="card-footer bg-white text-muted">
-                            <small><i class="fas fa-info-circle"></i> Segera validasi laporan di atas agar statusnya menjadi <b>Closed</b> (Selesai).</small>
-                        </div>
-                    </div>
-                </div>
+          <div class="col-12 col-sm-6 col-md-3" onclick="window.location.href='data-bug.php?status=Open'">
+            <div class="info-box bg-dark border border-secondary shadow-sm">
+              <span class="info-box-icon bg-danger elevation-1"><i class="fas fa-envelope-open-text"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text text-muted">Perlu Tindakan (Open)</span>
+                <span class="info-box-number text-white"><?= $total_open; ?></span>
+              </div>
             </div>
-            <?php endif; ?>
+          </div>
 
-            <?php if (empty($list_validasi)) : ?>
-            <div class="row mt-4">
-                <div class="col-md-12">
-                    <div class="card card-outline card-primary shadow-sm" style="border-radius: 15px;">
-                        <div class="card-header border-0">
-                            <h3 class="card-title font-weight-bold">👋 Selamat Datang, Admin!</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <p class="lead mb-1">Halo, <b><?= $_SESSION['login']['name']; ?></b>. Sistem berjalan normal.</p>
-                                    <p class="text-muted">Tidak ada laporan yang menunggu validasi (Resolved). Silakan cek Data Bug untuk laporan baru.</p>
-                                </div>
-                                <div class="col-md-4 text-right">
-                                    <a href="data-bug.php" class="btn btn-primary btn-lg rounded-pill px-4 shadow">
-                                        <i class="fas fa-rocket mr-2"></i> Kelola Semua Bug
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+          <div class="col-12 col-sm-6 col-md-3" onclick="window.location.href='data-bug.php?status=Resolved'">
+            <div class="info-box bg-dark border border-secondary shadow-sm">
+              <span class="info-box-icon bg-success elevation-1"><i class="fas fa-check-circle"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text text-muted">Selesai (Closed)</span>
+                <span class="info-box-number text-white"><?= $total_closed; ?></span>
+              </div>
             </div>
-            <?php endif; ?>
+          </div>
+
+          <div class="col-12 col-sm-6 col-md-3" onclick="window.location.href='active-acc.php'">
+            <div class="info-box bg-dark border border-secondary shadow-sm">
+              <span class="info-box-icon bg-warning elevation-1"><i class="fas fa-users text-white"></i></span>
+              <div class="info-box-content">
+                <span class="info-box-text text-muted">User Terdaftar</span>
+                <span class="info-box-number text-white"><?= $total_users; ?></span>
+              </div>
+            </div>
+          </div>
 
         </div>
-    </section>
-</div>
 
-<?php include 'templates/footer.php'; ?>
+        <div class="row">
+            <div class="col-lg-12">
+                <div class="card card-primary card-outline bg-dark border-secondary">
+                    <div class="card-header border-0">
+                        <h3 class="card-title text-white font-weight-bold">Laporan Masuk Terbaru</h3>
+                        <div class="card-tools">
+                            <a href="data-bug.php" class="btn btn-tool text-white">Lihat Semua</a>
+                        </div>
+                    </div>
+                    <div class="card-body table-responsive p-0">
+                        <table class="table table-hover table-valign-middle text-white">
+                            <thead>
+                            <tr>
+                                <th>Judul Masalah</th>
+                                <th>Prioritas</th>
+                                <th>Pelapor</th>
+                                <th>Status</th>
+                                <th class="text-right">Waktu</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach($recent_bugs as $rb): ?>
+                            <tr class="clickable-row" onclick="window.location.href='detail-bug.php?id=<?= $rb['bug_id']; ?>'">
+                                <td>
+                                    <span class="font-weight-bold text-info"><?= $rb['title']; ?></span>
+                                </td>
+                                <td>
+                                    <span class="badge badge-<?= ($rb['priority_name']=='Critical'?'danger':'info'); ?>">
+                                        <?= $rb['priority_name']; ?>
+                                    </span>
+                                </td>
+                                <td><?= $rb['pelapor']; ?></td>
+                                <td>
+                                    <span class="badge badge-<?= ($rb['status']=='Open'?'danger':'success'); ?>">
+                                        <?= $rb['status']; ?>
+                                    </span>
+                                </td>
+                                <td class="text-right text-muted">
+                                    <small><i class="fas fa-clock mr-1"></i> <?= date('d M H:i', strtotime($rb['created_at'])); ?></small>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+  
+  <footer class="main-footer"><strong>Copyright &copy; 2026 BugTracker.</strong></footer>
+</div>
+<script src="../assets/plugins/jquery/jquery.min.js"></script>
+<script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="../assets/dist/js/adminlte.min.js"></script>
+</body>
+</html>

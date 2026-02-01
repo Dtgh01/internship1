@@ -1,184 +1,284 @@
-<?php
-session_start();
-// Cek status login buat ngatur tombol di navbar
-$isLoggedIn = isset($_SESSION['login']);
-$role = $isLoggedIn ? $_SESSION['login']['role'] : '';
-
-// Tentukan arah redirect dashboard berdasarkan role
-$dashboardLink = 'dashboard.php';
-if ($role == 'admin') $dashboardLink = 'admin/index.php';
-if ($role == 'developer') $dashboardLink = 'developer/index.php';
-?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BugTracker - Sistem Tracking Bug</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BugTracker | Manajemen Bug</title>
     
-    <link rel="stylesheet" href="assets/plugins/bootstrap4/css/bootstrap.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/plugins/fontawesome-free/css/all.min.css">
-    
+    <link rel="stylesheet" href="assets/dist/css/adminlte.min.css">
+
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        
-        .hero {
-            background: linear-gradient(135deg, #007bff 0%, #00d2ff 100%);
-            color: white;
-            padding: 100px 0;
-            clip-path: polygon(0 0, 100% 0, 100% 85%, 0 100%);
-        }
-        .hero h1 { font-weight: 800; font-size: 3.5rem; }
-        .hero p { font-size: 1.2rem; opacity: 0.9; }
-        
-        .btn-light-custom {
-            background: white; color: #007bff; font-weight: bold;
-            padding: 12px 35px; border-radius: 50px; transition: 0.3s;
-        }
-        .btn-light-custom:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-
-        .feature-box {
-            text-align: center; padding: 40px 20px; transition: 0.3s;
-            border-radius: 15px; border: 1px solid #eee;
-        }
-        .feature-box:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            border-color: #007bff;
-        }
-        .feature-icon {
-            font-size: 3rem; color: #007bff; margin-bottom: 20px;
+        /* --- TEMA: MODERN ENGINEERING DARK --- */
+        :root {
+            --bg-dark: #0f172a;       
+            --bg-card: rgba(30, 41, 59, 0.7); 
+            --primary: #3b82f6;       
+            --secondary: #64748b;     
+            --text-light: #f1f5f9;    
+            --border-glass: rgba(255, 255, 255, 0.1); 
         }
 
+        html {
+            scroll-behavior: smooth; /* Agar tombol scrollnya halus */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: #94a3b8;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Background Pattern */
+        .engineering-grid {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Navbar */
+        .navbar-custom {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 15px 0;
+            transition: all 0.3s;
+        }
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--text-light) !important;
+            letter-spacing: -0.5px;
+            font-size: 1.25rem;
+            display: flex; align-items: center;
+        }
+        .navbar-brand span {
+            font-weight: 300; color: var(--secondary); font-size: 0.9rem; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--secondary);
+        }
+        .nav-link { font-weight: 500; color: #cbd5e1 !important; margin-left: 20px; font-size: 0.9rem; transition: color 0.2s; }
+        .nav-link:hover { color: var(--primary) !important; }
+
+        /* Tombol Login */
+        .btn-login {
+            background: rgba(59, 130, 246, 0.1); color: #60a5fa !important; border: 1px solid rgba(59, 130, 246, 0.4); border-radius: 6px; padding: 8px 24px; font-weight: 600; transition: all 0.3s ease;
+        }
+        .btn-login:hover { background: var(--primary); color: white !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+
+        /* Hero Section */
+        .hero-section { padding: 140px 0 100px; position: relative; }
+        .hero-glow {
+            position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%); top: -150px; left: -150px; z-index: -1;
+        }
+        .badge-tech {
+            background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); color: #94a3b8; padding: 6px 14px; border-radius: 4px; font-size: 0.8rem; font-family: 'Courier New', monospace; margin-bottom: 20px; display: inline-block;
+        }
+        .hero-title { font-weight: 800; font-size: 3.2rem; line-height: 1.2; color: var(--text-light); margin-bottom: 20px; }
+        .hero-lead { font-size: 1.05rem; margin-bottom: 35px; font-weight: 400; max-width: 540px; color: #94a3b8; }
+        .btn-cta {
+            background: var(--text-light); color: var(--bg-dark); font-weight: 600; padding: 12px 30px; border-radius: 6px; border: none; transition: transform 0.2s;
+        }
+        .btn-cta:hover { transform: translateY(-2px); background: white; box-shadow: 0 5px 15px rgba(255,255,255,0.1); }
+
+        /* General Card Style */
+        .glass-card {
+            background: var(--bg-card); padding: 30px; border-radius: 10px; border: 1px solid var(--border-glass); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); backdrop-filter: blur(10px); transition: transform 0.3s, border-color 0.3s; height: 100%;
+        }
+        .glass-card:hover { transform: translateY(-5px); border-color: rgba(59, 130, 246, 0.5); }
+        .icon-box {
+            width: 56px; height: 56px; background: rgba(59, 130, 246, 0.1); color: #60a5fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 20px; border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        h5 { color: var(--text-light); font-weight: 600; letter-spacing: -0.5px; }
+
+        /* Timeline / Alur Kerja Style */
         .step-number {
-            background: #007bff; color: white; width: 40px; height: 40px;
-            border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-            font-weight: bold; margin-bottom: 15px;
+            font-size: 3rem; font-weight: 800; color: rgba(255,255,255,0.05); position: absolute; top: 10px; right: 20px; line-height: 1; pointer-events: none;
         }
+        .timeline-connector {
+            border-left: 2px dashed var(--secondary); height: 50px; margin-left: 28px; opacity: 0.3;
+        }
+        @media (min-width: 768px) {
+            .timeline-connector {
+                border-left: none; border-top: 2px dashed var(--secondary); height: auto; width: 100px; margin: auto; display: block;
+            }
+        }
+
+        /* Footer */
+        footer { background: #020617; padding: 50px 0; margin-top: 80px; border-top: 1px solid var(--border-glass); color: #64748b; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm fixed-top">
+    <div class="engineering-grid"></div>
+
+    <nav class="navbar navbar-expand-lg fixed-top navbar-custom">
         <div class="container">
-            <a class="navbar-brand font-weight-bold text-primary" href="#">
-                <img src="assets/img/logotrimhub.png" alt="BugTracker" style="width: auto; height: 40px; margin-right: 5px;">
-                BugTracker
+            <a class="navbar-brand" href="#">
+<a class="navbar-brand" href="#">
+<img src="assets/img/logo1.png" alt="Logo" 
+     style="height: 32px; margin-right: 36px; filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));">BugTracker<span></span>
             </a>
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+                <span class="fas fa-bars" style="color: var(--text-light);"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ml-auto align-items-center">
-                    <li class="nav-item mx-2"><a class="nav-link" href="#fitur">Fitur</a></li>
-                    <li class="nav-item mx-2"><a class="nav-link" href="#cara-kerja">Cara Kerja</a></li>
-                    <li class="nav-item mx-2">
-                        <?php if ($isLoggedIn) : ?>
-                            <a href="<?= $dashboardLink; ?>" class="btn btn-primary btn-sm px-4 rounded-pill">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard Saya
-                            </a>
-                        <?php else : ?>
-                            <a href="auth/login.php" class="btn btn-outline-primary btn-sm px-4 rounded-pill">
-                                <i class="fas fa-sign-in-alt"></i> Login
-                            </a>
-                        <?php endif; ?>
+                    <li class="nav-item"><a class="nav-link" href="#fitur">Fitur Utama</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#alur">Alur Kerja</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-login ml-3" href="auth/login.php">
+                            Login <i class="fas fa-arrow-right ml-2" style="font-size: 0.8em;"></i>
+                        </a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
 
-    <section class="hero mt-5">
-        <div class="container text-center">
-            <div class="row justify-content-center">
-                <div class="col-md-8">
-                    <h1 class="mb-3">Tracking Bug<br>Tanpa Ribet.</h1>
-                    <p class="mb-5">Laporkan error aplikasi, pantau perbaikan secara real-time, dan bantu kami menjadi lebih baik. Cepat, Transparan, dan Efisien.</p>
-                    
-                    <?php if ($isLoggedIn) : ?>
-                        <a href="form-bug.php" class="btn btn-light-custom btn-lg">
-                            <i class="fas fa-plus-circle"></i> Laporkan Bug Sekarang
+    <header class="hero-section">
+        <div class="hero-glow"></div> 
+        
+        <div class="container position-relative">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="hero-title">Sistem Pelaporan Bug<br>Terintegrasi & Aman.</h1>
+                    <p class="hero-lead">
+                        Platform manajemen bug untuk mendukung proses pengembangan perangkat lunak.
+                    </p>
+                    <div class="d-flex align-items-center">
+                        <a href="auth/login.php" class="btn btn-cta">
+                            Mulai dengan Login
                         </a>
-                    <?php else : ?>
-                        <a href="auth/login.php" class="btn btn-light-custom btn-lg">
-                            <i class="fas fa-rocket"></i> Mulai Lapor Bug
+                        <a href="#alur" class="ml-4 text-white" style="text-decoration: none; font-weight: 500;">
+                            Pelajari Alur <i class="fas fa-arrow-down ml-1" style="font-size: 0.8em;"></i>
                         </a>
-                    <?php endif; ?>
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center d-none d-lg-block">
+                    <img src="assets/img/homepage.svg" alt="Technical Illustration" class="img-fluid" style="max-height: 420px; opacity: 0.9; filter: drop-shadow(0 0 40px rgba(59,130,246,0.15));">
                 </div>
             </div>
         </div>
-    </section>
+    </header>
 
     <section id="fitur" class="py-5">
         <div class="container">
-            <div class="text-center mb-5">
-                <h2 class="font-weight-bold">BugTracker</h2>
-                <p class="text-muted">Platform pelaporan bug.</p>
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 style="font-weight: 700; color: #fff;">Fitur BugTracker</h2>
+                    <p class="text-muted">Implementasi fitur teknis untuk mendukung siklus hidup pengembangan (SDLC).</p>
+                </div>
             </div>
             <div class="row">
-                <div class="col-md-4">
-                    <div class="feature-box bg-white">
-                        <div class="feature-icon"><i class="fas fa-bolt"></i></div>
-                        <h4>Fast Reporting</h4>
-                        <p class="text-muted">Formulir simpel. Lampirkan screenshot, pilih kategori, dan kirim dalam hitungan detik.</p>
+                <div class="col-md-4 mb-4">
+                    <div class="glass-card">
+                        <div class="icon-box"><i class="fas fa-database"></i></div>
+                        <h5>Data Terpusat</h5>
+                        <p class="small text-muted mb-0">Penyimpanan laporan bug menggunakan basis data relasional untuk integritas data dan kemudahan audit trail.</p>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-box bg-white">
-                        <div class="feature-icon"><i class="fas fa-sync-alt"></i></div>
-                        <h4>Real-time Tracking</h4>
-                        <p class="text-muted">Pantau status laporanmu dari <i>Open</i>, <i>In Progress</i>, hingga <i>Resolved</i> secara langsung.</p>
+                <div class="col-md-4 mb-4">
+                    <div class="glass-card">
+                        <div class="icon-box"><i class="fas fa-shield-alt"></i></div>
+                        <h5>Manajemen Multi-User</h5>
+                        <p class="small text-muted mb-0">Akses terpisah untuk setiap aktor berdasarkan role pada akun masing masing untuk menjaga alur kerja aplikasi tetap teratur.</p>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-box bg-white">
-                        <div class="feature-icon"><i class="fas fa-user-shield"></i></div>
-                        <h4>Dedicated Team</h4>
-                        <p class="text-muted">Developer kami langsung menerima notifikasi dan menangani masalah sesuai prioritas.</p>
+                <div class="col-md-4 mb-4">
+                    <div class="glass-card">
+                        <div class="icon-box"><i class="fas fa-chart-pie"></i></div>
+                        <h5>Visualisasi Statistik</h5>
+                        <p class="small text-muted mb-0">Dashboard interaktif menyajikan metrik performa perbaikan bug secara realtime untuk pengambilan keputusan.</p>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="cara-kerja" class="py-5 bg-light">
+    <section id="alur" class="py-5">
+        <div class="container pt-4">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 style="font-weight: 700; color: #fff;">Mekanisme Pelaporan</h2>
+                    <p class="text-muted">Alur kerja sistematis dari pelaporan hingga penyelesaian isu.</p>
+                </div>
+            </div>
+
+            <div class="row align-items-center">
+                <div class="col-md-4 mb-4">
+                    <div class="glass-card position-relative">
+                        <div class="step-number">01</div>
+                        <div class="icon-box" style="background: rgba(16, 185, 129, 0.1); color: #34d399; border-color: rgba(16, 185, 129, 0.2);">
+                            <i class="fas fa-bug"></i>
+                        </div>
+                        <h5>Pelaporan Bug</h5>
+                        <p class="small text-muted mb-0">QA menemukan isu dan mengisi form laporan disertai bukti (Screenshot/Log). Status awal: <b>Open</b>.</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-1 d-none d-md-block text-center">
+                    <i class="fas fa-chevron-right text-muted" style="opacity: 0.3; font-size: 1.5rem;"></i>
+                </div>
+
+                <div class="col-md-3 mb-4">
+                    <div class="glass-card position-relative">
+                        <div class="step-number">02</div>
+                        <div class="icon-box" style="background: rgba(245, 158, 11, 0.1); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2);">
+                            <i class="fas fa-code"></i>
+                        </div>
+                        <h5>Perbaikan</h5>
+                        <p class="small text-muted mb-0">Developer menerima tugas, melakukan debugging, dan memperbaiki kode. Status: <b>In Progress</b>.</p>
+                    </div>
+                </div>
+
+                <div class="col-md-1 d-none d-md-block text-center">
+                    <i class="fas fa-chevron-right text-muted" style="opacity: 0.3; font-size: 1.5rem;"></i>
+                </div>
+
+                <div class="col-md-3 mb-4">
+                    <div class="glass-card position-relative">
+                        <div class="step-number">03</div>
+                        <div class="icon-box">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <h5>Validasi</h5>
+                        <p class="small text-muted mb-0">Bug telah diperbaiki dan diverifikasi. Sistem mencatat waktu penyelesaian. Status: <b>Resolved</b>.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="text-center">
         <div class="container">
-            <div class="text-center mb-5">
-                <h2 class="font-weight-bold">Alur Pelaporan</h2>
+            <h6 class="font-weight-bold text-white mb-3">BugTracker</h6>
+            <div class="d-flex justify-content-center mb-4 text-muted small">
             </div>
-            <div class="row text-center">
-                <div class="col-md-3">
-                    <div class="step-number">1</div>
-                    <h5>Login</h5>
-                    <p class="small text-muted">Masuk dengan akun user Anda.</p>
-                </div>
-                <div class="col-md-3">
-                    <div class="step-number">2</div>
-                    <h5>Buat Laporan</h5>
-                    <p class="small text-muted">Isi detail error & upload bukti.</p>
-                </div>
-                <div class="col-md-3">
-                    <div class="step-number">3</div>
-                    <h5>Proses</h5>
-                    <p class="small text-muted">Developer memperbaiki masalah.</p>
-                </div>
-                <div class="col-md-3">
-                    <div class="step-number">4</div>
-                    <h5>Selesai</h5>
-                    <p class="small text-muted">Aplikasi kembali normal!</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <footer class="bg-dark text-white py-4 mt-5">
-        <div class="container text-center">
-            <p class="mb-0">&copy; <?= date('Y'); ?> <b>BugTracker</b>.</p>
+            <p class="mb-0" style="font-size: 12px; border-top: 1px solid var(--border-glass); padding-top: 20px; opacity: 0.5;">
+                &copy; 2026 <b>BugTracker</b>
+            </p>
         </div>
     </footer>
 
     <script src="assets/plugins/jquery/jquery.min.js"></script>
-    <script src="assets/plugins/bootstrap4/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        $(window).scroll(function() {
+            if ($(this).scrollTop() > 50) {
+                $('.navbar-custom').css('padding', '10px 0');
+                $('.navbar-custom').css('background', 'rgba(15, 23, 42, 0.95)');
+            } else {
+                $('.navbar-custom').css('padding', '15px 0');
+                $('.navbar-custom').css('background', 'rgba(15, 23, 42, 0.85)');
+            }
+        });
+    </script>
 </body>
-</html>
+</html>/
