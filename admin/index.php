@@ -157,7 +157,7 @@ $recent_bugs = query("SELECT bugs.*, users.name as pelapor, priorities.priority_
     </section>
   </div>
   
-  <footer class="main-footer"><strong>Copyright &copy; 2026 BugTracker.</strong></footer>
+  <footer class="main-footer"><strong> &copy; 2026 BugTracker.</strong></footer>
 </div>
 <script src="../assets/plugins/jquery/jquery.min.js"></script>
 <script src="../assets/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>

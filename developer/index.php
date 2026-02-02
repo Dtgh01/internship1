@@ -56,7 +56,7 @@ $my_bugs = query("SELECT bugs.*, users.name as pelapor, priorities.priority_name
 
   <nav class="main-header navbar navbar-expand navbar-dark">
     <ul class="navbar-nav"><li class="nav-item"><a class="nav-link" data-widget="pushmenu" href="#"><i class="fas fa-bars"></i></a></li></ul>
-    <ul class="navbar-nav ml-auto"><li class="nav-item"><span class="nav-link text-white">Developer Mode</span></li></ul>
+    <ul class="navbar-nav ml-auto"><li class="nav-item"><span class="nav-link text-white">Dashboard Developer</span></li></ul>
   </nav>
 
   <?php include 'sidebar.php'; ?>

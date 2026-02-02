@@ -73,23 +73,53 @@ if (isset($_POST["login"])) {
     <link rel="stylesheet" href="../assets/dist/css/adminlte.min.css">
 
     <style>
-        /* --- CUSTOM LOGIN CSS --- */
+        /* --- CUSTOM LOGIN CSS DENGAN GRID --- */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f172a; 
-            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 75%);
+            background-color: #0f172a; /* Warna Dasar Slate 900 */
             color: #fff;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative; /* Penting untuk layer */
+            overflow: hidden; /* Biar grid gak bocor */
         }
 
-        .login-box { width: 400px; padding: 20px; }
+        /* --- MESH GRID PATTERN --- */
+        body::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Motif Kotak Halus Warna Biru Pudar */
+            background-image: 
+                linear-gradient(rgba(59, 130, 246, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.1) 1px, transparent 1px);
+            background-size: 40px 40px; /* Ukuran kotak grid */
+            z-index: -2; /* Layer paling belakang */
+        }
+
+        /* --- VIGNETTE & GLOW EFFECT --- */
+        body::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Gradasi gelap di pinggir, terang di tengah */
+            background: radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.3) 0%, rgba(15, 23, 42, 1) 100%);
+            z-index: -1; /* Layer di atas grid */
+        }
+
+        .login-box { width: 400px; padding: 20px; z-index: 1; /* Pastikan di atas background */ }
 
         .card {
             background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px); /* Efek Kaca */
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 16px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -97,22 +127,19 @@ if (isset($_POST["login"])) {
 
         .card-header {
             background: transparent;
-            border-bottom: none; /* Hilangkan garis bawah header */
+            border-bottom: none;
             padding-top: 40px;
             padding-bottom: 10px;
         }
 
-        /* Styling Logo agar presisi */
         .login-logo img {
-            width: 100px; /* Ukuran Logo */
+            width: 100px;
             height: 100px;
             object-fit: contain;
-            filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.3)); /* Efek glow biru tipis */
+            filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.4)); /* Glow Logo */
             transition: transform 0.3s;
         }
-        .login-logo img:hover {
-            transform: scale(1.05); /* Efek zoom dikit pas dihover */
-        }
+        .login-logo img:hover { transform: scale(1.05); }
 
         .card-body { padding: 30px; }
 
@@ -175,7 +202,7 @@ if (isset($_POST["login"])) {
                     </a>
                 </div>
                 <p class="text-white font-weight-bold mt-3 mb-1" style="font-size: 1.2rem;">BugTracker</p>
-                <p class="login-box-msg p-0 text-muted">LOGIN</p>
+                <p class="login-box-msg p-0 text-muted">Silahkan Login ke Akun Anda</p>
             </div>
             
             <div class="card-body">

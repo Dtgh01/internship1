@@ -122,7 +122,7 @@
             <a class="navbar-brand" href="#">
 <a class="navbar-brand" href="#">
 <img src="assets/img/logo1.png" alt="Logo" 
-     style="height: 32px; margin-right: 36px; filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));">BugTracker<span></span>
+     style="height: 50px; margin-right: 36px; filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.5));">BugTracker<span></span>
             </a>
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav">
                 <span class="fas fa-bars" style="color: var(--text-light);"></span>
@@ -161,8 +161,11 @@
                     </div>
                 </div>
                 <div class="col-lg-6 text-center d-none d-lg-block">
-                    <img src="assets/img/homepage.svg" alt="Technical Illustration" class="img-fluid" style="max-height: 420px; opacity: 0.9; filter: drop-shadow(0 0 40px rgba(59,130,246,0.15));">
-                </div>
+    <img src="assets/img/logo1.png" 
+         alt="Logo BugTracker" 
+         class="img-fluid" 
+         style="max-height: 400px; opacity: 1; filter: drop-shadow(0 0 40px rgba(59,130,246,0.4)); transform: scale(1.1);">
+</div>
             </div>
         </div>
     </header>
